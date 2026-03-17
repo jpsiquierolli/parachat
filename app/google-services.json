@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "236035253921",
+    "project_id": "parachat-50788",
+    "storage_bucket": "parachat-50788.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:236035253921:android:f51b50a8d19e9e67ba72e0",
+        "android_client_info": {
+          "package_name": "com.example.parachat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_BL8YvBi09j9ci_fkAy4tHa6__KuyaNs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

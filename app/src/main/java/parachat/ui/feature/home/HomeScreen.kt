@@ -13,12 +13,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,16 +40,21 @@ import parachat.ui.theme.ParachatTheme
 @Composable
 fun HomeScreen(
     onUserClick: (String) -> Unit,
+    onProfileClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val viewModel = viewModel<HomeViewModel>()
     val users by viewModel.users.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
 
     HomeContent(
         users = users,
         currentUser = currentUser,
+        searchQuery = searchQuery,
+        onSearchQueryChange = viewModel::onSearchQueryChange,
         onUserClick = onUserClick,
+        onProfileClick = onProfileClick,
         onSignOut = {
             viewModel.signOut()
             onSignOut()
@@ -59,7 +67,10 @@ fun HomeScreen(
 fun HomeContent(
     users: List<User>,
     currentUser: User?,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
     onUserClick: (String) -> Unit,
+    onProfileClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
     Scaffold(
@@ -67,6 +78,9 @@ fun HomeContent(
             TopAppBar(
                 title = { Text(text = "Parachat") },
                 actions = {
+                    IconButton(onClick = onProfileClick) {
+                        Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
+                    }
                     IconButton(onClick = onSignOut) {
                         Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sair")
                     }
@@ -82,6 +96,17 @@ fun HomeContent(
                     modifier = Modifier.padding(16.dp)
                 )
             }
+
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                placeholder = { Text("Buscar usuários...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
+                singleLine = true
+            )
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
@@ -141,10 +166,11 @@ fun HomeContentPreview() {
                 User(id = "2", username = "Bob", email = "bob@example.com")
             ),
             currentUser = User(id = "3", username = "Me", email = "me@example.com"),
+            searchQuery = "",
+            onSearchQueryChange = {},
             onUserClick = {},
+            onProfileClick = {},
             onSignOut = {}
         )
     }
 }
-
-

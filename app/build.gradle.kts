@@ -18,7 +18,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "parachat"
+        applicationId = "com.example.parachat"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -83,6 +83,19 @@ dependencies {
 
     // Kotlinx Serialization
     implementation(libs.kotlinx.serialization.json)
+
+    // Maps / Location
+    implementation(libs.play.services.location)
+    
+    // Coil
+    implementation(libs.coil.compose)
+
+    // Icons
+    implementation(libs.androidx.compose.material.icons.extended)
+
+    implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
+
+    implementation("com.google.firebase:firebase-analytics")
 
     testImplementation(libs.junit)
 

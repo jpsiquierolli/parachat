@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="blue">#45BEB9</color>
+    <color name="blue_in">#1565C0</color>
+    <color name="green">#34D287</color>
+    <color name="grey">#E9E7F2</color>
+    <color name="grey_in">#F4F4F4</color>
+    <color name="navy_blue">#352E4F</color>
+    <color name="orange">#F87441</color>
+    <color name="orange_in">#FF8F00</color>
+    <color name="purple">#8C72ED</color>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="red">#F55150</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="white">#FFFFFFFF</color>
+    <string name="app_name">Parachat</string>
+    <string name="gcm_defaultSenderId" translatable="false">236035253921</string>
+    <string name="google_api_key" translatable="false">AIzaSyD_BL8YvBi09j9ci_fkAy4tHa6__KuyaNs</string>
+    <string name="google_app_id" translatable="false">1:236035253921:android:f51b50a8d19e9e67ba72e0</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyD_BL8YvBi09j9ci_fkAy4tHa6__KuyaNs</string>
+    <string name="google_storage_bucket" translatable="false">parachat-50788.firebasestorage.app</string>
+    <string name="project_id" translatable="false">parachat-50788</string>
+    <style name="Theme.Parachat" parent="android:Theme.Material.Light.NoActionBar"/>
+</resources>

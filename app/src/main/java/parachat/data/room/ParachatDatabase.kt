@@ -18,19 +18,17 @@ abstract class ParachatDatabase : RoomDatabase() {
 
     abstract val userDao: UserDao
     abstract val messageDao: MessageDao
-    abstract val userDao: UserDao
-    abstract val historyDao: HistoryDao
 
     companion object {
         @Volatile
-        private var INSTANCE: QuizAppDatabase? = null
+        private var INSTANCE: ParachatDatabase? = null
 
-        fun getInstance(context: Context): QuizAppDatabase {
+        fun getInstance(context: Context): ParachatDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
-                    QuizAppDatabase::class.java,
-                    "quiz-app"
+                    ParachatDatabase::class.java,
+                    "parachat-db"
                 )
                     .fallbackToDestructiveMigration()
                     .build()
@@ -51,7 +49,7 @@ object UserDatabaseProvider {
             val instance = Room.databaseBuilder(
                 context.applicationContext,
                 ParachatDatabase::class.java,
-                "parachat-app"
+                "com.example.parachat-app"
             ).build()
             INSTANCE = instance
             instance

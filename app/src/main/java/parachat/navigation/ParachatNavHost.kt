@@ -9,8 +9,8 @@ import parachat.ui.feature.login.LoginScreen
 import parachat.ui.feature.signup.SignupScreen
 import parachat.ui.feature.home.HomeScreen
 import parachat.ui.feature.chat.ChatScreen
+import parachat.ui.feature.profile.ProfileScreen
 import kotlinx.serialization.Serializable
-import androidx.compose.material3.Text
 
 @Serializable
 object LoginRoute
@@ -20,6 +20,9 @@ object SignupRoute
 
 @Serializable
 object HomeRoute
+
+@Serializable
+object ProfileRoute
 
 @Serializable
 data class ChatRoute(val userId: String)
@@ -66,10 +69,23 @@ fun ParachatNavHost() {
                         launchSingleTop = true
                     }
                 },
+                onProfileClick = {
+                    navController.navigate(ProfileRoute) {
+                        launchSingleTop = true
+                    }
+                },
                 onSignOut = {
                     navController.navigate(LoginRoute) {
                         popUpTo(LoginRoute) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable<ProfileRoute> {
+            ProfileScreen(
+                onBackClick = {
+                    navController.popBackStack()
                 }
             )
         }

@@ -6,21 +6,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import parachat.data.supabase.user.UserRepositoryImpl
-import parachat.data.SupabaseProvider
-import parachat.domain.User
-import parachat.navigation.HomeRoute
-import parachat.navigation.LoginRoute
-import parachat.ui.UIEvent
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
+// import kotlinx.coroutines.tasks.await
+import parachat.auth.FirebaseAuthRepository
+import parachat.data.firebase.user.FirebaseUserRepository
+import parachat.domain.User
+import parachat.domain.UserStatus
+import parachat.navigation.HomeRoute
+import parachat.navigation.LoginRoute
+import parachat.ui.UIEvent
 
 class SignupViewModel : ViewModel() {
 
-    private val auth : FirebaseAuth = FirebaseAuth.getInstance()
+    private val authRepository = FirebaseAuthRepository(FirebaseAuth.getInstance())
+    private val userRepository = FirebaseUserRepository(FirebaseDatabase.getInstance())
 
     var username by mutableStateOf("")
         private set
@@ -89,10 +92,10 @@ class SignupViewModel : ViewModel() {
                     return@launch
                 }
 
-                auth.createUserWithEmailAndPassword(email, password).await()
+                authRepository.signUp(email, password)
 
-                val userId = auth.currentUser?.uid ?: return@launch
-                saveUserToSupabase(userId, email, username)
+                val userId = authRepository.getCurrentUser()?.uid ?: return@launch
+                saveUserProfile(userId, email, username)
 
                 _uiEvent.send(UIEvent.Navigate(HomeRoute))
             } catch (e: Exception) {
@@ -105,21 +108,22 @@ class SignupViewModel : ViewModel() {
         }
     }
 
-    private suspend fun saveUserToSupabase(userId: String, email: String, username: String) {
+    private suspend fun saveUserProfile(userId: String, email: String, username: String) {
         try {
-            val userRepo = UserRepositoryImpl(SupabaseProvider.client)
-
             val user = User(
                 id = userId,
                 email = email,
-                username = username
+                username = username,
+                status = UserStatus.ONLINE.name,
+                lastSeen = System.currentTimeMillis()
             )
-
-            userRepo.insert(user)
-            Log.d("SignupViewModel", "User saved to Supabase: $username")
+            userRepository.insert(user)
+            Log.d("SignupViewModel", "User saved to Firebase: $username")
         } catch (e: Exception) {
-            Log.e("SignupViewModel", "Error saving user to Supabase", e)
+            Log.e("SignupViewModel", "Error saving user profile", e)
+            _uiEvent.send(UIEvent.ShowSnackBar(
+                message = "No foi possvel salvar o perfil: ${e.message ?: "erro desconhecido"}"
+            ))
         }
     }
 }
-

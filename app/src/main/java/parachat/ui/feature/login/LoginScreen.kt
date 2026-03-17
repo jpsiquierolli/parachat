@@ -18,16 +18,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import parachat.navigation.HomeRoute
 import parachat.navigation.SignupRoute
 import parachat.ui.UIEvent
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import parachat.ui.theme.ParachatTheme
 
 
 @Composable
@@ -141,6 +142,14 @@ fun LoginContent(
                 enabled = !loading
             ) {
                 Text(text = "Login")
+            }
+
+            TextButton(
+                onClick = {
+                    onEvent(LoginEvent.ForgotPassword)
+                }
+            ) {
+                Text(text = "Esqueci minha senha")
             }
 
             TextButton(

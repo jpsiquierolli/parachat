@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import parachat.navigation.HomeRoute
 import parachat.navigation.LoginRoute
 import parachat.ui.UIEvent
+import parachat.ui.theme.ParachatTheme
 
 
 @Composable

@@ -8,5 +8,29 @@ data class Message(
     val senderId: String = "",
     val receiverId: String = "",
     val content: String = "",
+    val mediaUrl: String? = null,
+    val mediaThumbnailUrl: String? = null,
+    val mediaDurationMillis: Long? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val type: MessageType = MessageType.TEXT,
+    val status: MessageStatus = MessageStatus.SENT,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Serializable
+enum class MessageType {
+    TEXT,
+    IMAGE,
+    VIDEO,
+    AUDIO,
+    LOCATION,
+    FILE
+}
+
+@Serializable
+enum class MessageStatus {
+    SENT,
+    DELIVERED,
+    READ
+}

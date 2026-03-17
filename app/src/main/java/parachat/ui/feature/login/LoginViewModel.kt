@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import parachat.auth.FirebaseAuthRepository
 import parachat.navigation.HomeRoute
 import parachat.navigation.SignupRoute
 import parachat.ui.UIEvent
@@ -12,10 +13,10 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
+// import kotlinx.coroutines.tasks.await
 
 class LoginViewModel : ViewModel() {
-    private val auth : FirebaseAuth = FirebaseAuth.getInstance()
+    private val authRepository = FirebaseAuthRepository(FirebaseAuth.getInstance())
 
     var email by mutableStateOf("")
         private set
@@ -35,7 +36,7 @@ class LoginViewModel : ViewModel() {
     }
 
     fun checkAuthStatus () {
-        if (auth.currentUser != null) {
+        if (authRepository.getCurrentUser() != null) {
             viewModelScope.launch {
                 _uiEvent.send(UIEvent.Navigate(HomeRoute))
             }
@@ -56,6 +57,26 @@ class LoginViewModel : ViewModel() {
             }
             LoginEvent.NavigateToSignup -> {
                 navigateToSignup()
+            }
+            LoginEvent.ForgotPassword -> {
+                resetPassword()
+            }
+        }
+    }
+
+    private fun resetPassword() {
+        if (email.isBlank()) {
+            viewModelScope.launch {
+                _uiEvent.send(UIEvent.ShowSnackBar("Digite seu email para redefinir a senha"))
+            }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                authRepository.resetPassword(email)
+                _uiEvent.send(UIEvent.ShowSnackBar("Email de redefinição enviado!"))
+            } catch (e: Exception) {
+                _uiEvent.send(UIEvent.ShowSnackBar(e.message ?: "Erro ao enviar email"))
             }
         }
     }
@@ -82,7 +103,7 @@ class LoginViewModel : ViewModel() {
                     ))
                     return@launch
                 }
-                auth.signInWithEmailAndPassword(email, password).await()
+                authRepository.signIn(email, password)
                 _uiEvent.send(UIEvent.Navigate(HomeRoute))
             } catch (e: Exception) {
                 _uiEvent.send(UIEvent.ShowSnackBar(
@@ -94,4 +115,3 @@ class LoginViewModel : ViewModel() {
         }
     }
 }
-
