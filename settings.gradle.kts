@@ -20,6 +20,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "QuizApp"
+rootProject.name = "Parachat"
 include(":app")
  
