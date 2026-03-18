@@ -47,7 +47,7 @@
         android:testOnly="true"
         android:theme="@style/Theme.Parachat" >
         <activity
-            android:name="parachat.MainActivity"
+            android:name="com.example.parachat.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.Parachat"

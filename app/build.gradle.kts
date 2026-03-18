@@ -10,7 +10,7 @@ plugins {
 }
 
 android {
-    namespace = "parachat"
+    namespace = "com.example.parachat"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
