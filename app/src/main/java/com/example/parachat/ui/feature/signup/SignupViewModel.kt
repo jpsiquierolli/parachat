@@ -11,6 +11,8 @@ import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
 // import kotlinx.coroutines.tasks.await
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.firebase.user.FirebaseUserRepository
@@ -37,7 +39,7 @@ class SignupViewModel : ViewModel() {
     var loading by mutableStateOf(false)
         private set
 
-    private val _uiEvent = Channel<UIEvent>()
+    private val _uiEvent = Channel<UIEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
 
     fun onEvent(event: SignupEvent) {
@@ -102,21 +104,23 @@ class SignupViewModel : ViewModel() {
                     return@launch
                 }
 
-                // Try to save profile with timeout, but do not block navigation if it fails/times out
-                try {
-                    withTimeout(5000L) {
-                        saveUserProfile(userId, email, username)
+                // Save profile asynchronously (with timeout) so navigation isn't blocked
+                launch {
+                    try {
+                        withTimeout(15_000L) {
+                            saveUserProfile(userId, email, username)
+                        }
+                    } catch (e: TimeoutCancellationException) {
+                        Log.w("SignupViewModel", "Profile save timed out", e)
+                        _uiEvent.send(UIEvent.ShowSnackBar(
+                            message = "Aviso: O perfil está lento para salvar. Verifique sua conexão."
+                        ))
+                    } catch (e: Exception) {
+                        Log.e("SignupViewModel", "Profile save failed", e)
+                        _uiEvent.send(UIEvent.ShowSnackBar(
+                            message = "Aviso: Não foi possível salvar o perfil. O cadastro foi concluído."
+                        ))
                     }
-                } catch (e: TimeoutCancellationException) {
-                    Log.w("SignupViewModel", "Profile save timed out", e)
-                    _uiEvent.send(UIEvent.ShowSnackBar(
-                        message = "Aviso: O perfil demorou para salvar. Verifique sua conexão."
-                    ))
-                } catch (e: Exception) {
-                    Log.e("SignupViewModel", "Profile save failed", e)
-                    _uiEvent.send(UIEvent.ShowSnackBar(
-                        message = "Aviso: Não foi possível salvar o perfil. O cadastro foi concluído."
-                    ))
                 }
 
                 _uiEvent.send(UIEvent.Navigate(HomeRoute))

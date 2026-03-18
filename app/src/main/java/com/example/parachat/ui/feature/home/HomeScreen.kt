@@ -111,6 +111,17 @@ fun HomeContent(
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (users.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Nenhum contato encontrado. Crie outra conta ou peça para alguém entrar.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        )
+                    }
+                }
                 items(users) { user ->
                     UserItem(user = user, onClick = { onUserClick(user.id) })
                 }

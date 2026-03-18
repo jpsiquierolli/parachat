@@ -52,7 +52,7 @@ fun ParachatNavHost() {
             SignupScreen (
                 navigateToListScreen = {
                     navController.navigate(HomeRoute) {
-                        popUpTo(LoginRoute) { inclusive = true }
+                        popUpTo(SignupRoute) { inclusive = true }
                         launchSingleTop = true
                     }
                 },

@@ -242,49 +242,20 @@ fun ChatScreen(
         },
         bottomBar = {
             Column {
-                 // Pinned Message Area
-                 if (pinnedMessage != null) {
-                     Card(
-                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                         modifier = Modifier
-                             .fillMaxWidth()
-                             .padding(8.dp)
-                             .clickable {
-                                 // Scroll to message or unpin logic
-                                 // For now just allow verify unpin
-                             }
-                     ) {
-                         Row(
-                             modifier = Modifier.padding(8.dp),
-                             verticalAlignment = Alignment.CenterVertically
-                         ) {
-                             Icon(Icons.Default.PushPin, contentDescription = "Fixado", modifier = Modifier.size(16.dp))
-                             Spacer(modifier = Modifier.size(8.dp))
-                             Column(modifier = Modifier.weight(1f)) {
-                                 Text(text = "Mensagem Fixada", style = MaterialTheme.typography.labelSmall)
-                                 Text(text = pinnedMessage?.content ?: "Mídia", style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                             }
-                             IconButton(onClick = { viewModel.unpinMessage() }) {
-                                 Icon(Icons.Default.Close, contentDescription = "Desfixar", modifier = Modifier.size(16.dp))
-                             }
-                         }
-                     }
-                 }
-
-                 if (showBottomSheet) {
-                     MediaBottomSheet(
-                         onDismiss = { showBottomSheet = false },
-                         onGalleryClick = { 
-                             showBottomSheet = false
-                             galleryLauncher.launch("image/*") 
-                         },
-                         onCameraClick = { 
-                             showBottomSheet = false
-                             cameraLauncher.launch(null) 
-                         },
-                         onLocationClick = {
-                             showBottomSheet = false
-                             if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                if (showBottomSheet) {
+                    MediaBottomSheet(
+                        onDismiss = { showBottomSheet = false },
+                        onGalleryClick = {
+                            showBottomSheet = false
+                            galleryLauncher.launch("image/*")
+                        },
+                        onCameraClick = {
+                            showBottomSheet = false
+                            cameraLauncher.launch(null)
+                        },
+                        onLocationClick = {
+                            showBottomSheet = false
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                                  getCurrentLocation(context) { lat, long ->
                                      val message = Message(
                                          senderId = currentUserId,
@@ -300,14 +271,14 @@ fun ChatScreen(
                              } else {
                                 locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                              }
-                         },
-                         onAudioClick = {
-                             showBottomSheet = false
-                             startRecording()
-                         }
-                     )
-                 }
-                
+                        },
+                        onAudioClick = {
+                            showBottomSheet = false
+                            startRecording()
+                        }
+                    )
+                }
+
                 // Recording Indicator / Input Area
                 if (isRecording) {
                     Row(
@@ -347,22 +318,64 @@ fun ChatScreen(
             }
         }
     ) { paddingValues ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(8.dp),
-            reverseLayout = true
         ) {
-            items(messages.reversed()) { message ->
-                MessageItem(
-                    message = message,
-                    isCurrentUser = message.senderId == currentUserId,
-                    onLongClick = {
-                        viewModel.pinMessage(message)
-                        Toast.makeText(context, "Mensagem fixada!", Toast.LENGTH_SHORT).show()
-                    }
+            if (pinnedMessage != null) {
+                PinnedMessageBar(
+                    message = pinnedMessage,
+                    onUnpin = { viewModel.unpinMessage() }
                 )
+            }
+
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(8.dp),
+                reverseLayout = true
+            ) {
+                items(messages.reversed()) { message ->
+                    MessageItem(
+                        message = message,
+                        isCurrentUser = message.senderId == currentUserId,
+                        highlight = searchQuery,
+                        onLongClick = {
+                            viewModel.pinMessage(message)
+                            Toast.makeText(context, "Mensagem fixada!", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PinnedMessageBar(
+    message: Message?,
+    onUnpin: () -> Unit
+) {
+    if (message == null) return
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.PushPin, contentDescription = "Fixado", modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.size(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Mensagem fixada", style = MaterialTheme.typography.labelSmall)
+                Text(text = message.content.ifBlank { "Mídia" }, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+            }
+            IconButton(onClick = onUnpin) {
+                Icon(Icons.Default.Close, contentDescription = "Desfixar", modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -372,6 +385,7 @@ fun ChatScreen(
 fun MessageItem(
     message: Message,
     isCurrentUser: Boolean,
+    highlight: String = "",
     onLongClick: () -> Unit = {}
 ) {
     Box(
@@ -395,7 +409,7 @@ fun MessageItem(
                 .padding(8.dp)
         ) {
             Text(
-                text = message.content,
+                text = highlightedText(message.content, highlight),
                 color = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary
                 else MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -489,4 +503,27 @@ private fun getCurrentLocation(context: Context, onLocation: (Double, Double) ->
     } catch (e: SecurityException) {
         e.printStackTrace()
     }
+}
+
+@Composable
+private fun highlightedText(text: String, query: String): androidx.compose.ui.text.AnnotatedString {
+    if (query.isBlank()) return androidx.compose.ui.text.AnnotatedString(text)
+    val lower = text.lowercase()
+    val target = query.lowercase()
+    val builder = androidx.compose.ui.text.buildAnnotatedString {
+        var start = 0
+        while (true) {
+            val index = lower.indexOf(target, startIndex = start)
+            if (index < 0) {
+                append(text.substring(start))
+                break
+            }
+            append(text.substring(start, index))
+            pushStyle(androidx.compose.ui.text.SpanStyle(background = MaterialTheme.colorScheme.tertiaryContainer))
+            append(text.substring(index, index + target.length))
+            pop()
+            start = index + target.length
+        }
+    }
+    return builder
 }

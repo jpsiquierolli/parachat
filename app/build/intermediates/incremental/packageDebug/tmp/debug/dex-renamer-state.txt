@@ -1,4 +1,4 @@
-#Tue Mar 17 22:17:15 BRT 2026
+#Tue Mar 17 22:49:28 BRT 2026
 base.0=/apl/git/parachat/app/build/intermediates/dex/debug/mergeExtDexDebug/classes.dex
 base.1=/apl/git/parachat/app/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
 base.10=/apl/git/parachat/app/build/intermediates/dex/debug/mergeProjectDexDebug/7/classes.dex
