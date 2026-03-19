@@ -3,6 +3,7 @@ package com.example.parachat.auth
 import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.tasks.await
 
 class FirebaseAuthRepository (
@@ -23,6 +24,14 @@ class FirebaseAuthRepository (
 
     suspend fun resetPassword(email: String) {
         auth.sendPasswordResetEmail(email).await()
+    }
+
+    suspend fun updateDisplayName(displayName: String) {
+        val current = auth.currentUser ?: return
+        val profileUpdate = UserProfileChangeRequest.Builder()
+            .setDisplayName(displayName)
+            .build()
+        current.updateProfile(profileUpdate).await()
     }
 
     fun signOut() {

@@ -1,12 +1,12 @@
 package com.example.parachat.di;
 
 import com.example.parachat.domain.chat.GroupRepository;
-import com.google.firebase.database.FirebaseDatabase;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.Preconditions;
 import dagger.internal.QualifierMetadata;
 import dagger.internal.ScopeMetadata;
+import io.github.jan.supabase.SupabaseClient;
 import javax.annotation.processing.Generated;
 import javax.inject.Provider;
 
@@ -25,24 +25,23 @@ import javax.inject.Provider;
     "cast"
 })
 public final class AppModule_ProvideGroupRepositoryFactory implements Factory<GroupRepository> {
-  private final Provider<FirebaseDatabase> firebaseDatabaseProvider;
+  private final Provider<SupabaseClient> supabaseClientProvider;
 
-  public AppModule_ProvideGroupRepositoryFactory(
-      Provider<FirebaseDatabase> firebaseDatabaseProvider) {
-    this.firebaseDatabaseProvider = firebaseDatabaseProvider;
+  public AppModule_ProvideGroupRepositoryFactory(Provider<SupabaseClient> supabaseClientProvider) {
+    this.supabaseClientProvider = supabaseClientProvider;
   }
 
   @Override
   public GroupRepository get() {
-    return provideGroupRepository(firebaseDatabaseProvider.get());
+    return provideGroupRepository(supabaseClientProvider.get());
   }
 
   public static AppModule_ProvideGroupRepositoryFactory create(
-      Provider<FirebaseDatabase> firebaseDatabaseProvider) {
-    return new AppModule_ProvideGroupRepositoryFactory(firebaseDatabaseProvider);
+      Provider<SupabaseClient> supabaseClientProvider) {
+    return new AppModule_ProvideGroupRepositoryFactory(supabaseClientProvider);
   }
 
-  public static GroupRepository provideGroupRepository(FirebaseDatabase firebaseDatabase) {
-    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.provideGroupRepository(firebaseDatabase));
+  public static GroupRepository provideGroupRepository(SupabaseClient supabaseClient) {
+    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.provideGroupRepository(supabaseClient));
   }
 }

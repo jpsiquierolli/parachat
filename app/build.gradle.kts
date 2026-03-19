@@ -9,6 +9,14 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+val supabaseUrl = (project.findProperty("SUPABASE_URL") as String?)
+    ?: System.getenv("SUPABASE_URL")
+    ?: "https://hfnphqthphorkhqcucee.supabase.co"
+
+val supabaseKey = (project.findProperty("SUPABASE_KEY") as String?)
+    ?: System.getenv("SUPABASE_KEY")
+    ?: "sb_publishable_06hFbleNTt7kgljTzb6IoQ_UAlSb2hI"
+
 android {
     namespace = "com.example.parachat"
     compileSdk {
@@ -25,6 +33,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Keep credentials out of code; override with gradle.properties or env vars.
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
     }
 
 
@@ -43,6 +55,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     kotlinOptions {

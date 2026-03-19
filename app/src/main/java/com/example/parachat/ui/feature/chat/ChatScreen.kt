@@ -3,6 +3,7 @@ package com.example.parachat.ui.feature.chat
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
@@ -74,6 +75,8 @@ import coil.compose.AsyncImage
 import com.google.android.gms.location.LocationServices
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageType
+import com.example.parachat.domain.displayName
+import com.example.parachat.domain.displayNameFromParts
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -163,7 +166,7 @@ fun ChatScreen(
             return
         }
 
-        val file = File(context.cacheDir, "audio_record.mp3")
+        val file = File(context.cacheDir, "audio_record.m4a")
         audioFile = file
         
         recorder = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -195,7 +198,7 @@ fun ChatScreen(
             
             audioFile?.let { file ->
                 val bytes = file.readBytes()
-                viewModel.sendMedia(bytes, "mp3", "audio/mpeg", MessageType.AUDIO)
+                viewModel.sendMedia(bytes, "m4a", "audio/mp4", MessageType.AUDIO)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -208,7 +211,7 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(text = otherUser?.username ?: "Chat")
+                        Text(text = otherUser?.displayName() ?: displayNameFromParts(username = null, email = "", id = userId))
                         otherUser?.let {
                             Text(
                                 text = it.status,
@@ -429,11 +432,7 @@ fun MessageBubble(
                         }
                     }
                     MessageType.AUDIO -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Mensagem de Voz")
-                        }
+                        AudioMessagePlayer(message.mediaUrl)
                     }
                     else -> Text(text = "[Mídia]")
                 }
@@ -457,6 +456,60 @@ fun MessageBubble(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AudioMessagePlayer(mediaUrl: String?) {
+    val context = LocalContext.current
+    var player: MediaPlayer? by remember { mutableStateOf(null) }
+    var isPlaying by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            player?.release()
+            player = null
+        }
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(
+            onClick = {
+                val url = mediaUrl.orEmpty()
+                if (url.isBlank()) return@IconButton
+
+                if (isPlaying) {
+                    player?.pause()
+                    isPlaying = false
+                } else {
+                    try {
+                        if (player == null) {
+                            player = MediaPlayer().apply {
+                                setDataSource(url)
+                                setOnCompletionListener { isPlaying = false }
+                                setOnPreparedListener {
+                                    it.start()
+                                    isPlaying = true
+                                }
+                                prepareAsync()
+                            }
+                        } else {
+                            player?.start()
+                            isPlaying = true
+                        }
+                    } catch (_: Exception) {
+                        isPlaying = false
+                    }
+                }
+            }
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) "Pausar áudio" else "Reproduzir áudio"
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(text = "Mensagem de Voz")
     }
 }
 

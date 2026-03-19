@@ -1,5 +1,6 @@
 package com.example.parachat.data
 
+import com.example.parachat.BuildConfig
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
@@ -8,13 +9,12 @@ import io.github.jan.supabase.serializer.KotlinXSerializer
 import kotlinx.serialization.json.Json
 
 object SupabaseProvider {
-    // TODO: Replace with your actual Supabase URL and Anon Key
-    private const val SUPABASE_URL = "https://hfnphqthphorkhqcucee.supabase.co"
-    private const val SUPABASE_KEY = "sb_publishable_06hFbleNTt7kgljTzb6IoQ_UAlSb2hI"
+    private val supabaseUrl: String = BuildConfig.SUPABASE_URL
+    private val supabaseKey: String = BuildConfig.SUPABASE_KEY
 
     val client = createSupabaseClient(
-        supabaseUrl = SUPABASE_URL,
-        supabaseKey = SUPABASE_KEY
+        supabaseUrl = supabaseUrl,
+        supabaseKey = supabaseKey
     ) {
         install(Postgrest)
         install(Realtime)
@@ -26,8 +26,17 @@ object SupabaseProvider {
     }
 
     init {
-        if (SUPABASE_KEY.startsWith("sb_publishable_")) {
-            android.util.Log.e("SupabaseProvider", "WARNING: Using dummy Supabase keys. Profile picture upload WILL FAIL. Please replace with your own keys.")
+        val looksLikePlaceholder = supabaseKey.isBlank() ||
+            supabaseUrl.isBlank() ||
+            supabaseUrl.contains("example", ignoreCase = true) ||
+            supabaseKey.contains("replace", ignoreCase = true) ||
+            supabaseKey.contains("dummy", ignoreCase = true)
+
+        if (looksLikePlaceholder) {
+            android.util.Log.e(
+                "SupabaseProvider",
+                "WARNING: Supabase credentials look like placeholders. Configure SUPABASE_URL and SUPABASE_KEY in gradle.properties or environment variables."
+            )
         }
     }
 }

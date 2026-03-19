@@ -2,9 +2,11 @@ package com.example.parachat.data.supabase.user
 
 import com.example.parachat.data.room.ParachatDatabase
 import com.example.parachat.data.room.user.UserEntity
+import com.example.parachat.data.supabase.SupabaseSchemaGuard
 import com.example.parachat.domain.User
 import com.example.parachat.domain.UserRepository
 import com.example.parachat.domain.UserStatus
+import com.example.parachat.domain.displayNameFromParts
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
@@ -18,18 +20,29 @@ class SupabaseUserRepository @Inject constructor(
 ) : UserRepository {
 
     private val userDao = localDb.userDao
+    private val usersTable = "users"
+
+    private fun logTableMissingOnce(table: String) {
+        android.util.Log.e(
+            "SupabaseUserRepository",
+            "Supabase table '$table' is missing. Run the SQL migration scripts in parachat/supabase/migrations."
+        )
+    }
 
     override suspend fun insert(user: User) {
+        userDao.insert(UserEntity(user.id, user.email, displayNameFromParts(user.username, user.email, user.id)))
+
+        if (!SupabaseSchemaGuard.isTableAvailable(usersTable)) {
+            return
+        }
+
         try {
-            // Note: If using custom 'users' table, and JSON mapping is snake_case (via @SerialName),
-            // this insert should work assuming table columns are id, email, username, photo_url, last_seen.
-            // If table uses 'lastSeen', our @SerialName would conflict unless columns match.
-            // Usually Supabase auto-generated schema is snake_case.
-            supabase.postgrest["users"].upsert(user) // Use upsert to handle duplicates/updates
-            userDao.insert(UserEntity(user.id, user.email, user.username ?: "Unknown"))
+            supabase.postgrest[usersTable].upsert(user)
         } catch (e: Exception) {
             android.util.Log.e("SupabaseUserRepository", "Error inserting user", e)
-            throw e
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(usersTable, e)) {
+                logTableMissingOnce(usersTable)
+            }
         }
     }
 
@@ -47,10 +60,12 @@ class SupabaseUserRepository @Inject constructor(
             // Ignore cache read errors
         }
 
-        // Fetch from Supabase (full data)
+        if (!SupabaseSchemaGuard.isTableAvailable(usersTable)) {
+            return@flow
+        }
+
         try {
-            val users = supabase.postgrest["users"].select().decodeList<User>()
-            // Log success
+            val users = supabase.postgrest[usersTable].select().decodeList<User>()
             android.util.Log.d("SupabaseUserRepository", "Fetched ${users.size} users from Supabase")
             
             emit(users)
@@ -58,33 +73,41 @@ class SupabaseUserRepository @Inject constructor(
             // Update cache
             if (users.isNotEmpty()) {
                 users.forEach { 
-                    userDao.insert(UserEntity(it.id, it.email, it.username ?: "Unknown"))
+                    userDao.insert(UserEntity(it.id, it.email, displayNameFromParts(it.username, it.email, it.id)))
                 }
             } else {
                  android.util.Log.d("SupabaseUserRepository", "Supabase returned empty user list")
             }
         } catch (e: Exception) {
             android.util.Log.e("SupabaseUserRepository", "Error fetching users from Supabase", e)
-            // If we have emitted cached data, the UI is showing something.
-            // If cache was empty and this fails, UI shows empty.
-            // We should probably re-emit cache if it was already emitted? No, flow stays open?
-            // Flow usually completes if we don't use callbackFlow. 'flow' builder completes after block.
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(usersTable, e)) {
+                logTableMissingOnce(usersTable)
+            }
         }
     }
 
     override fun observeUser(userId: String): Flow<User?> = flow {
+        if (!SupabaseSchemaGuard.isTableAvailable(usersTable)) {
+            val cached = userDao.getBy(userId)
+            emit(cached?.let { User(id = it.id, email = it.email, username = it.username) })
+            return@flow
+        }
+
         try {
-            val user = supabase.postgrest["users"].select {
+            val user = supabase.postgrest[usersTable].select {
                 filter { eq("id", userId) }
             }.decodeSingleOrNull<User>()
             emit(user)
             
             // Should also persist partial update to Room
             if (user != null) {
-                userDao.insert(UserEntity(user.id, user.email, user.username ?: "Unknown"))
+                userDao.insert(UserEntity(user.id, user.email, displayNameFromParts(user.username, user.email, user.id)))
             }
         } catch (e: Exception) {
             android.util.Log.e("SupabaseUserRepository", "Error observing user", e)
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(usersTable, e)) {
+                logTableMissingOnce(usersTable)
+            }
             // Try to load from cache as fallback
             val cached = userDao.getBy(userId)
             if (cached != null) {
@@ -96,17 +119,24 @@ class SupabaseUserRepository @Inject constructor(
     }
 
     override suspend fun updateStatus(userId: String, status: UserStatus) {
+        if (!SupabaseSchemaGuard.isTableAvailable(usersTable)) {
+            return
+        }
+
         try {
-            supabase.postgrest["users"].update(
+            supabase.postgrest[usersTable].update(
                 {
                    set("status", status.name)
-                   set("lastSeen", System.currentTimeMillis()) 
+                   set("last_seen", System.currentTimeMillis()) 
                 }
             ) {
                 filter { eq("id", userId) }
             }
         } catch (e: Exception) {
              android.util.Log.e("SupabaseUserRepository", "Error updating status", e)
+             if (SupabaseSchemaGuard.markMissingTableIfNeeded(usersTable, e)) {
+                 logTableMissingOnce(usersTable)
+             }
         }
     }
 }

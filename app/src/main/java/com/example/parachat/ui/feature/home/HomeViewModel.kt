@@ -2,24 +2,20 @@ package com.example.parachat.ui.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.example.parachat.auth.FirebaseAuthRepository
-import com.example.parachat.data.firebase.user.FirebaseUserRepository
 import com.example.parachat.domain.User
 import com.example.parachat.domain.UserRepository
 import com.example.parachat.domain.UserStatus
+import com.example.parachat.domain.displayName
+import com.example.parachat.domain.displayNameFromParts
 import com.example.parachat.domain.chat.Conversation
 import com.example.parachat.domain.chat.MessageRepository
-import kotlinx.coroutines.delay
-
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withTimeout
 
 @HiltViewModel
@@ -45,6 +41,7 @@ class HomeViewModel @Inject constructor(
     val isLoading = _isLoading.asStateFlow()
 
     private var allUsersCache = emptyList<User>()
+    private var rawConversationsCache = emptyList<Conversation>()
 
     init {
         fetchData()
@@ -70,11 +67,13 @@ class HomeViewModel @Inject constructor(
                 messageRepository.observeConversations(currentUserId)
                     .catch { e ->
                         _conversations.value = emptyList()
+                        rawConversationsCache = emptyList()
                         _isLoading.value = false
                         android.util.Log.e("HomeViewModel", "Error loading conversations", e)
                     }
                     .collect { list ->
-                        _conversations.value = list
+                        rawConversationsCache = list
+                        updateConversationTitles()
                         _isLoading.value = false
                     }
             }
@@ -111,6 +110,7 @@ class HomeViewModel @Inject constructor(
                     allUsersCache = allUsers.filter { it.id != currentUserId }
                     android.util.Log.d("HomeViewModel", "Fetched all users: ${allUsers.size}, filtered: ${allUsersCache.size}")
                     _isLoading.value = false
+                    updateConversationTitles()
                     if (_searchQuery.value.isNotBlank()) {
                          onSearchQueryChange(_searchQuery.value)
                     } else {
@@ -127,8 +127,20 @@ class HomeViewModel @Inject constructor(
             _users.value = allUsersCache // Show all users when not searching
         } else {
             _users.value = allUsersCache.filter {
-                (it.username ?: "").contains(query, ignoreCase = true) || it.email.contains(query, ignoreCase = true)
+                it.displayName().contains(query, ignoreCase = true) || it.email.contains(query, ignoreCase = true)
             }
+        }
+    }
+
+    private fun updateConversationTitles() {
+        val usersById = allUsersCache.associateBy { it.id }
+        _conversations.value = rawConversationsCache.map { conversation ->
+            val displayTitle = usersById[conversation.otherUserId]?.displayName()
+                ?: conversation.title
+                    .takeIf { it.isNotBlank() && it != conversation.otherUserId }
+                ?: displayNameFromParts(username = null, email = "", id = conversation.otherUserId)
+
+            conversation.copy(title = displayTitle)
         }
     }
 

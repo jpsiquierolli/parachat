@@ -15,6 +15,7 @@ import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageRepository
 import com.example.parachat.domain.chat.MessageStatus
 import com.example.parachat.domain.chat.MessageType
+import com.example.parachat.domain.displayNameFromParts
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -28,6 +29,7 @@ class FirebaseMessageRepository(
     private val messagesRef = database.getReference("messages")
     private val pinnedRef = database.getReference("pinnedMessages")
     private val conversationsRef = database.getReference("conversations")
+    private val usersRef = database.getReference("users")
     private val messageDao = localDb.messageDao
 
     override suspend fun sendMessage(message: Message) {
@@ -180,7 +182,8 @@ class FirebaseMessageRepository(
     }
 
     private suspend fun updateConversationForSender(message: Message) {
-        val conversation = buildConversation(message, otherUserId = message.receiverId, unread = 0)
+        val title = resolveDisplayName(message.receiverId)
+        val conversation = buildConversation(message, otherUserId = message.receiverId, title = title, unread = 0)
         conversationsRef.child(message.senderId).child(message.receiverId).setValue(conversation).await()
     }
 
@@ -188,15 +191,27 @@ class FirebaseMessageRepository(
         val ref = conversationsRef.child(message.receiverId).child(message.senderId)
         val snapshot = ref.get().await()
         val currentUnread = snapshot.child("unreadCount").getValue(Int::class.java) ?: 0
-        val conversation = buildConversation(message, otherUserId = message.senderId, unread = currentUnread + 1)
+        val title = resolveDisplayName(message.senderId)
+        val conversation = buildConversation(message, otherUserId = message.senderId, title = title, unread = currentUnread + 1)
         ref.setValue(conversation).await()
     }
 
-    private fun buildConversation(message: Message, otherUserId: String, unread: Int): Conversation {
+    private suspend fun resolveDisplayName(userId: String): String {
+        return try {
+            val snapshot = usersRef.child(userId).get().await()
+            val email = snapshot.child("email").getValue(String::class.java).orEmpty()
+            val username = snapshot.child("username").getValue(String::class.java)
+            displayNameFromParts(username = username, email = email, id = userId)
+        } catch (_: Exception) {
+            userId
+        }
+    }
+
+    private fun buildConversation(message: Message, otherUserId: String, title: String, unread: Int): Conversation {
         return Conversation(
             id = conversationId(message.senderId, message.receiverId),
             otherUserId = otherUserId,
-            title = otherUserId,
+            title = title,
             lastMessagePreview = previewFor(message),
             lastMessageTimestamp = message.timestamp,
             unreadCount = unread,

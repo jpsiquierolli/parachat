@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.parachat.domain.displayName
 import com.example.parachat.ui.UIEvent
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,7 +74,7 @@ fun CreateGroupScreen(
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = user.username ?: "Unknown", modifier = Modifier.weight(1f))
+                        Text(text = user.displayName(), modifier = Modifier.weight(1f))
                         if (selectedUsers.contains(user.id)) {
                             Icon(Icons.Default.Check, contentDescription = "Selecionado", tint = MaterialTheme.colorScheme.primary)
                         }

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.parachat.domain.User
+import com.example.parachat.domain.displayName
 import com.example.parachat.domain.chat.Conversation
 import com.example.parachat.ui.theme.ParachatTheme
 
@@ -49,6 +51,7 @@ fun HomeScreen(
     onUserClick: (String) -> Unit,
     onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onGroupsClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val viewModel = hiltViewModel<HomeViewModel>()
@@ -68,6 +71,7 @@ fun HomeScreen(
         onUserClick = onUserClick,
         onCreateGroupClick = onCreateGroupClick,
         onProfileClick = onProfileClick,
+        onGroupsClick = onGroupsClick,
         onSignOut = {
             viewModel.signOut(onComplete = onSignOut)
         }
@@ -86,6 +90,7 @@ fun HomeContent(
     onUserClick: (String) -> Unit,
     onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onGroupsClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
     var showUserSearch by remember { mutableStateOf(false) }
@@ -95,6 +100,9 @@ fun HomeContent(
             TopAppBar(
                 title = { Text(text = "Parachat") },
                 actions = {
+                    IconButton(onClick = onGroupsClick) {
+                        Icon(Icons.Default.Group, contentDescription = "Grupos")
+                    }
                     IconButton(onClick = onProfileClick) {
                         Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
                     }
@@ -123,7 +131,7 @@ fun HomeContent(
         Column(modifier = Modifier.padding(paddingValues)) {
             if (currentUser != null) {
                 Text(
-                    text = "Logado como: ${currentUser.username ?: "Unknown"}",
+                    text = "Logado como: ${currentUser.displayName()}",
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
@@ -293,7 +301,7 @@ fun UserItem(user: User, onClick: () -> Unit) {
         Spacer(modifier = Modifier.size(16.dp))
         Column {
             Text(
-                text = (user.username ?: "Sem nome").ifBlank { "Sem nome" },
+                text = user.displayName(),
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
@@ -322,6 +330,7 @@ fun HomeContentPreview() {
             onUserClick = {},
             onCreateGroupClick = {},
             onProfileClick = {},
+            onGroupsClick = {},
             onSignOut = {}
         )
     }

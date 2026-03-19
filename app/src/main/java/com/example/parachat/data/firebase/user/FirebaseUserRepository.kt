@@ -13,6 +13,7 @@ import com.example.parachat.data.room.ParachatDatabase
 import com.example.parachat.domain.User
 import com.example.parachat.domain.UserRepository
 import com.example.parachat.domain.UserStatus
+import com.example.parachat.domain.displayNameFromParts
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -27,11 +28,13 @@ class FirebaseUserRepository(
     private val userDao = localDb.userDao
 
     override suspend fun insert(user: User) {
-        usersRef.child(user.id).setValue(user).await()
+        val normalizedUsername = displayNameFromParts(user.username, user.email, user.id)
+        val normalizedUser = user.copy(username = normalizedUsername)
+        usersRef.child(user.id).setValue(normalizedUser).await()
         userDao.insert(com.example.parachat.data.room.user.UserEntity(
-            id = user.id,
-            email = user.email,
-            username = user.username ?: "Unknown"
+            id = normalizedUser.id,
+            email = normalizedUser.email,
+            username = normalizedUser.username.orEmpty()
         ))
     }
 
@@ -43,7 +46,11 @@ class FirebaseUserRepository(
                         // Manually map to ensure safety
                         val id = it.child("id").getValue(String::class.java) ?: it.key ?: return@mapNotNull null
                         val email = it.child("email").getValue(String::class.java) ?: ""
-                        val username = it.child("username").getValue(String::class.java) ?: "Unknown"
+                        val username = displayNameFromParts(
+                            username = it.child("username").getValue(String::class.java),
+                            email = email,
+                            id = id
+                        )
                         val photoUrl = it.child("photoUrl").getValue(String::class.java)
                         val status = it.child("status").getValue(String::class.java) ?: UserStatus.OFFLINE.name
                         val about = it.child("about").getValue(String::class.java) ?: ""
@@ -64,7 +71,7 @@ class FirebaseUserRepository(
                         userDao.insert(com.example.parachat.data.room.user.UserEntity(
                             id = user.id,
                             email = user.email,
-                            username = user.username ?: "Unknown"
+                            username = user.username.orEmpty()
                         ))
                     }
                 }
@@ -90,7 +97,47 @@ class FirebaseUserRepository(
     override fun observeUser(userId: String): Flow<User?> = callbackFlow {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                trySend(snapshot.getValue(User::class.java))
+                val id = snapshot.child("id").getValue(String::class.java) ?: snapshot.key ?: userId
+                val email = snapshot.child("email").getValue(String::class.java).orEmpty()
+                if (!snapshot.exists()) {
+                    trySend(null)
+                    return
+                }
+
+                val resolvedUsername = displayNameFromParts(
+                    username = snapshot.child("username").getValue(String::class.java),
+                    email = email,
+                    id = id
+                )
+
+                val user = User(
+                    id = id,
+                    email = email,
+                    username = resolvedUsername,
+                    photoUrl = snapshot.child("photoUrl").getValue(String::class.java),
+                    status = snapshot.child("status").getValue(String::class.java) ?: UserStatus.OFFLINE.name,
+                    about = snapshot.child("about").getValue(String::class.java) ?: "",
+                    lastSeen = snapshot.child("lastSeen").getValue(Long::class.java) ?: 0L
+                )
+
+                repositoryScope.launch {
+                    userDao.insert(
+                        com.example.parachat.data.room.user.UserEntity(
+                            id = user.id,
+                            email = user.email,
+                            username = user.username.orEmpty()
+                        )
+                    )
+                }
+
+                // Backfill empty usernames so all clients can show the same display name.
+                if (snapshot.child("username").getValue(String::class.java).isNullOrBlank()) {
+                    repositoryScope.launch {
+                        usersRef.child(id).child("username").setValue(resolvedUsername)
+                    }
+                }
+
+                trySend(user)
             }
 
             override fun onCancelled(error: DatabaseError) {

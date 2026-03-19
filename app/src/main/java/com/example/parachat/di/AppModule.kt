@@ -3,15 +3,14 @@ package com.example.parachat.di
 import android.content.Context
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.SupabaseProvider
-import com.example.parachat.data.firebase.chat.FirebaseGroupRepository
-import com.example.parachat.data.firebase.chat.FirebaseMessageRepository
-import com.example.parachat.data.firebase.user.FirebaseUserRepository
 import com.example.parachat.data.room.ParachatDatabase
+import com.example.parachat.data.supabase.chat.SupabaseGroupRepository
+import com.example.parachat.data.supabase.chat.SupabaseMessageRepository
+import com.example.parachat.data.supabase.user.SupabaseUserRepository
 import com.example.parachat.domain.UserRepository
 import com.example.parachat.domain.chat.GroupRepository
 import com.example.parachat.domain.chat.MessageRepository
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,16 +27,6 @@ object AppModule {
     @Singleton
     fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
 
-    @Provides
-    @Singleton
-    fun provideFirebaseDatabase(): FirebaseDatabase {
-        // Force specific URL as google-services.json seems to be missing it or pointing to legacy
-        return try {
-            FirebaseDatabase.getInstance("https://parachat-50788-default-rtdb.firebaseio.com/")
-        } catch (e: Exception) {
-            FirebaseDatabase.getInstance()
-        }
-    }
 
     @Provides
     @Singleton
@@ -57,19 +46,19 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideUserRepository(firebaseDatabase: FirebaseDatabase, localDb: ParachatDatabase): UserRepository {
-        return FirebaseUserRepository(firebaseDatabase, localDb)
+    fun provideUserRepository(supabaseClient: SupabaseClient, localDb: ParachatDatabase): UserRepository {
+        return SupabaseUserRepository(supabaseClient, localDb)
     }
 
     @Provides
     @Singleton
-    fun provideMessageRepository(firebaseDatabase: FirebaseDatabase, localDb: ParachatDatabase): MessageRepository {
-        return FirebaseMessageRepository(firebaseDatabase, localDb)
+    fun provideMessageRepository(supabaseClient: SupabaseClient, localDb: ParachatDatabase): MessageRepository {
+        return SupabaseMessageRepository(supabaseClient, localDb)
     }
 
     @Provides
     @Singleton
-    fun provideGroupRepository(firebaseDatabase: FirebaseDatabase): GroupRepository {
-        return FirebaseGroupRepository(firebaseDatabase)
+    fun provideGroupRepository(supabaseClient: SupabaseClient): GroupRepository {
+        return SupabaseGroupRepository(supabaseClient)
     }
 }

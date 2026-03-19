@@ -3,6 +3,8 @@ package com.example.parachat;
 import com.example.parachat.di.AppModule;
 import com.example.parachat.ui.feature.chat.ChatViewModel_HiltModules;
 import com.example.parachat.ui.feature.chat.CreateGroupViewModel_HiltModules;
+import com.example.parachat.ui.feature.chat.GroupManagementViewModel_HiltModules;
+import com.example.parachat.ui.feature.chat.GroupsViewModel_HiltModules;
 import com.example.parachat.ui.feature.home.HomeViewModel_HiltModules;
 import com.example.parachat.ui.feature.login.LoginViewModel_HiltModules;
 import com.example.parachat.ui.feature.profile.ProfileViewModel_HiltModules;
@@ -160,6 +162,8 @@ public final class ParachatApplication_HiltComponents {
       modules = {
           ChatViewModel_HiltModules.KeyModule.class,
           CreateGroupViewModel_HiltModules.KeyModule.class,
+          GroupManagementViewModel_HiltModules.KeyModule.class,
+          GroupsViewModel_HiltModules.KeyModule.class,
           HiltWrapper_ActivityRetainedComponentManager_LifecycleModule.class,
           HiltWrapper_SavedStateHandleModule.class,
           HomeViewModel_HiltModules.KeyModule.class,
@@ -205,6 +209,8 @@ public final class ParachatApplication_HiltComponents {
       modules = {
           ChatViewModel_HiltModules.BindsModule.class,
           CreateGroupViewModel_HiltModules.BindsModule.class,
+          GroupManagementViewModel_HiltModules.BindsModule.class,
+          GroupsViewModel_HiltModules.BindsModule.class,
           HiltWrapper_HiltViewModelFactory_ViewModelModule.class,
           HomeViewModel_HiltModules.BindsModule.class,
           LoginViewModel_HiltModules.BindsModule.class,

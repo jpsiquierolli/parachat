@@ -2,8 +2,6 @@ package com.example.parachat.ui.feature.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,7 +9,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.SupabaseProvider
-import com.example.parachat.data.firebase.user.FirebaseUserRepository
 import com.example.parachat.data.supabase.storage.MediaStorageRepository
 import com.example.parachat.domain.User
 import com.example.parachat.domain.UserRepository
@@ -52,11 +49,15 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Since updateStatus updates "status" and "lastSeen", we need a full update method or similar
-                // But FirebaseUserRepository only has insert (overwrite) or updateStatus.
-                // We'll use insert to overwrite fields, but preserve others.
-                val updatedUser = user.copy(username = username, about = about)
+                val normalizedUsername = username.trim()
+                if (normalizedUsername.isBlank()) {
+                    _error.value = "Nome de usuário não pode ficar vazio"
+                    return@launch
+                }
+
+                val updatedUser = user.copy(username = normalizedUsername, about = about.trim())
                 userRepository.insert(updatedUser)
+                authRepository.updateDisplayName(normalizedUsername)
             } catch (e: Exception) {
                 _error.value = e.message
             } finally {

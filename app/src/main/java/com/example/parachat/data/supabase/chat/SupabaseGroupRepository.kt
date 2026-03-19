@@ -1,0 +1,113 @@
+package com.example.parachat.data.supabase.chat
+
+import com.example.parachat.data.supabase.SupabaseSchemaGuard
+import com.example.parachat.domain.chat.Group
+import com.example.parachat.domain.chat.GroupRepository
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import javax.inject.Inject
+
+class SupabaseGroupRepository @Inject constructor(
+    private val supabase: SupabaseClient
+) : GroupRepository {
+
+    private val groupsTable = "groups"
+
+    private fun logTableMissingOnce() {
+        android.util.Log.e(
+            "SupabaseGroupRepo",
+            "Supabase table '$groupsTable' is missing. Run the SQL migration scripts in parachat/supabase/migrations."
+        )
+    }
+
+    override suspend fun createGroup(group: Group): String {
+        val groupId = if (group.id.isBlank()) java.util.UUID.randomUUID().toString() else group.id
+        val payload = group.copy(id = groupId)
+        if (!SupabaseSchemaGuard.isTableAvailable(groupsTable)) {
+            return groupId
+        }
+
+        try {
+            supabase.postgrest[groupsTable].upsert(payload)
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseGroupRepo", "Error creating group", e)
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {
+                logTableMissingOnce()
+            }
+        }
+        return groupId
+    }
+
+    override suspend fun updateGroup(group: Group) {
+        if (!SupabaseSchemaGuard.isTableAvailable(groupsTable)) {
+            return
+        }
+
+        try {
+            supabase.postgrest[groupsTable].upsert(group)
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseGroupRepo", "Error updating group", e)
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {
+                logTableMissingOnce()
+            }
+        }
+    }
+
+    override suspend fun addMember(groupId: String, userId: String) {
+        val group = loadGroup(groupId) ?: return
+        if (group.members.contains(userId)) return
+        updateGroup(group.copy(members = group.members + userId))
+    }
+
+    override suspend fun removeMember(groupId: String, userId: String) {
+        val group = loadGroup(groupId) ?: return
+        if (!group.members.contains(userId)) return
+        updateGroup(group.copy(members = group.members.filterNot { it == userId }))
+    }
+
+    override fun observeGroups(userId: String): Flow<List<Group>> = flow {
+        if (!SupabaseSchemaGuard.isTableAvailable(groupsTable)) {
+            emit(emptyList())
+            return@flow
+        }
+
+        try {
+            val groups = supabase.postgrest[groupsTable].select {
+                filter {
+                    contains("members", listOf(userId))
+                }
+            }.decodeList<Group>()
+            emit(groups)
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseGroupRepo", "Error loading groups", e)
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {
+                logTableMissingOnce()
+            }
+            emit(emptyList())
+        }
+    }
+
+    override fun observeGroup(groupId: String): Flow<Group?> = flow {
+        emit(loadGroup(groupId))
+    }
+
+    private suspend fun loadGroup(groupId: String): Group? {
+        if (!SupabaseSchemaGuard.isTableAvailable(groupsTable)) {
+            return null
+        }
+
+        return try {
+            supabase.postgrest[groupsTable].select {
+                filter { eq("id", groupId) }
+            }.decodeSingleOrNull<Group>()
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseGroupRepo", "Error loading group", e)
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {
+                logTableMissingOnce()
+            }
+            null
+        }
+    }
+}

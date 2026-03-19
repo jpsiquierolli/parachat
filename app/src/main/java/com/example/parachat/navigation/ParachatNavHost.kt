@@ -28,6 +28,12 @@ object ProfileRoute
 object CreateGroupRoute
 
 @Serializable
+object GroupsRoute
+
+@Serializable
+data class GroupManagementRoute(val groupId: String)
+
+@Serializable
 data class ChatRoute(val userId: String)
 
 @Composable
@@ -80,6 +86,11 @@ fun ParachatNavHost() {
                         launchSingleTop = true
                     }
                 },
+                onGroupsClick = {
+                    navController.navigate(GroupsRoute) {
+                        launchSingleTop = true
+                    }
+                },
                 onSignOut = {
                     navController.navigate(LoginRoute) {
                         popUpTo(0) { inclusive = true }
@@ -93,6 +104,24 @@ fun ParachatNavHost() {
                 onBackClick = {
                     navController.popBackStack()
                 }
+            )
+        }
+
+        composable<GroupsRoute> {
+            com.example.parachat.ui.feature.chat.GroupsScreen(
+                onBackClick = { navController.popBackStack() },
+                onCreateGroupClick = { navController.navigate(CreateGroupRoute) },
+                onManageGroupClick = { groupId ->
+                    navController.navigate(GroupManagementRoute(groupId))
+                }
+            )
+        }
+
+        composable<GroupManagementRoute> { backStackEntry ->
+            val route: GroupManagementRoute = backStackEntry.toRoute()
+            com.example.parachat.ui.feature.chat.GroupManagementScreen(
+                groupId = route.groupId,
+                onBackClick = { navController.popBackStack() }
             )
         }
 
