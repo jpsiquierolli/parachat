@@ -35,7 +35,6 @@ class FirebaseUserRepository(
                         }
                     } catch (e: Exception) {
                         Log.e("FirebaseUserRepository", "Error converting child to User: ${child.key}", e)
-                        // Skip corrupted data
                     }
                 }
                 trySend(users)
@@ -71,6 +70,17 @@ class FirebaseUserRepository(
     suspend fun getUserByEmail(email: String): User? {
         val snapshot = usersRef.orderByChild("email").equalTo(email).get().await()
         return snapshot.children.firstOrNull()?.let { 
+            try {
+                it.getValue(User::class.java)
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    suspend fun getUserByUsername(username: String): User? {
+        val snapshot = usersRef.orderByChild("username").equalTo(username).get().await()
+        return snapshot.children.firstOrNull()?.let {
             try {
                 it.getValue(User::class.java)
             } catch (e: Exception) {

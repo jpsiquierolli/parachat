@@ -2,6 +2,7 @@ package com.example.parachat.ui.feature.chat
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.net.Uri
@@ -16,6 +17,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -33,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.google.android.gms.location.LocationServices
@@ -70,7 +73,31 @@ fun ChatScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            Toast.makeText(context, "Permissão de áudio concedida. Tente gravar novamente.", Toast.LENGTH_SHORT).show()
+            val file = File(context.cacheDir, "audio_record_${System.currentTimeMillis()}.mp4")
+            audioFile = file
+            val newRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(context)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+            newRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            newRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            newRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            newRecorder.setOutputFile(file.absolutePath)
+            try {
+                newRecorder.prepare()
+                newRecorder.start()
+                recorder = newRecorder
+                isRecording = true
+                Toast.makeText(context, "Gravando...", Toast.LENGTH_SHORT).show()
+            } catch (e: IOException) {
+                e.printStackTrace()
+                newRecorder.release()
+                Toast.makeText(context, "Erro ao iniciar gravação.", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Permissão de microfone negada.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -88,14 +115,37 @@ fun ChatScreen(
         }
     }
 
+    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        bitmap?.let {
-            val stream = ByteArrayOutputStream()
-            it.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
-            val bytes = stream.toByteArray()
-            viewModel.sendMedia(bytes, "jpg", "image/jpeg", MessageType.IMAGE)
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            cameraImageUri?.let { uri ->
+                val bytes = readBytesFromUri(context, uri)
+                if (bytes != null && bytes.isNotEmpty()) {
+                    viewModel.sendMedia(bytes, "jpg", "image/jpeg", MessageType.IMAGE)
+                } else {
+                    Toast.makeText(context, "Erro ao ler foto.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    fun launchCamera() {
+        val file = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        cameraImageUri = uri
+        cameraLauncher.launch(uri)
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            launchCamera()
+        } else {
+            Toast.makeText(context, "Permissão de câmera negada.", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -131,29 +181,30 @@ fun ChatScreen(
             return
         }
 
-        val file = File(context.cacheDir, "audio_record.mp3")
+        val file = File(context.cacheDir, "audio_record_${System.currentTimeMillis()}.mp4")
         audioFile = file
-        
+
         val newRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             MediaRecorder(context)
         } else {
             @Suppress("DEPRECATION")
             MediaRecorder()
-        }.apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setOutputFile(file.absolutePath)
-            try {
-                prepare()
-                start()
-                isRecording = true
-                Toast.makeText(context, "Gravando...", Toast.LENGTH_SHORT).show()
-            } catch (e: IOException) {
-                e.printStackTrace()
-            }
         }
-        recorder = newRecorder
+        newRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+        newRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+        newRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+        newRecorder.setOutputFile(file.absolutePath)
+        try {
+            newRecorder.prepare()
+            newRecorder.start()
+            recorder = newRecorder
+            isRecording = true
+            Toast.makeText(context, "Gravando...", Toast.LENGTH_SHORT).show()
+        } catch (e: IOException) {
+            e.printStackTrace()
+            newRecorder.release()
+            Toast.makeText(context, "Erro ao iniciar gravação.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     fun stopRecording() {
@@ -162,14 +213,17 @@ fun ChatScreen(
             recorder?.release()
             recorder = null
             isRecording = false
-            
-            audioFile?.let { file ->
+            val file = audioFile
+            if (file != null && file.exists() && file.length() > 0) {
                 val bytes = file.readBytes()
-                viewModel.sendMedia(bytes, "mp3", "audio/mpeg", MessageType.AUDIO)
+                viewModel.sendMedia(bytes, "mp4", "audio/mp4", MessageType.AUDIO)
+            } else {
+                Toast.makeText(context, "Arquivo de áudio inválido.", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             e.printStackTrace()
             isRecording = false
+            recorder = null
         }
     }
 
@@ -222,7 +276,11 @@ fun ChatScreen(
                         },
                         onCameraClick = {
                             showBottomSheet = false
-                            cameraLauncher.launch(null)
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                launchCamera()
+                            } else {
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
                         },
                         onLocationClick = {
                             showBottomSheet = false
@@ -302,8 +360,18 @@ fun ChatScreen(
             }
 
             val groupedMessages = remember(messages) {
-                messages.groupBy { 
-                    SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it.timestamp))
+                messages
+                    .sortedBy { it.timestamp }
+                    .groupBy {
+                        SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it.timestamp))
+                    }
+            }
+
+            val listState = rememberLazyListState()
+            LaunchedEffect(messages.size) {
+                if (messages.isNotEmpty()) {
+                    val totalItems = messages.size + groupedMessages.size
+                    listState.animateScrollToItem(totalItems - 1)
                 }
             }
 
@@ -311,12 +379,15 @@ fun ChatScreen(
                 modifier = Modifier
                     .weight(1f)
                     .padding(8.dp),
-                reverseLayout = true
+                state = listState
             ) {
-                val dates = groupedMessages.keys.toList().sortedDescending()
+                val dates = groupedMessages.keys.toList().sorted()
                 dates.forEach { date ->
+                    item {
+                        DateHeader(date)
+                    }
                     val dayMessages = groupedMessages[date] ?: emptyList()
-                    items(dayMessages.reversed()) { message ->
+                    items(dayMessages) { message ->
                         MessageItem(
                             message = message,
                             isCurrentUser = message.senderId == currentUserId,
@@ -326,9 +397,6 @@ fun ChatScreen(
                                 Toast.makeText(context, "Mensagem fixada!", Toast.LENGTH_SHORT).show()
                             }
                         )
-                    }
-                    item {
-                        DateHeader(date)
                     }
                 }
             }
@@ -390,6 +458,7 @@ fun MessageItem(
     onLongClick: () -> Unit = {}
 ) {
     val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.timestamp))
+    val context = LocalContext.current
     
     Box(
         modifier = Modifier
@@ -443,6 +512,35 @@ fun MessageItem(
                                 .padding(top = 4.dp)
                                 .clip(RoundedCornerShape(8.dp))
                         )
+                    } else if (message.type == MessageType.LOCATION && message.latitude != null && message.longitude != null) {
+                        val lat = message.latitude
+                        val lon = message.longitude
+                        val mapUrl = "https://staticmap.openstreetmap.de/staticmap.php?center=$lat,$lon&zoom=15&size=256x160&markers=$lat,$lon,red-pushpin"
+                        Column(modifier = Modifier.padding(top = 4.dp)) {
+                            AsyncImage(
+                                model = mapUrl,
+                                contentDescription = "Mapa",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        val geoUri = Uri.parse("geo:$lat,$lon?q=$lat,$lon")
+                                        val mapIntent = Intent(Intent.ACTION_VIEW, geoUri)
+                                        mapIntent.setPackage("com.google.android.apps.maps")
+                                        try {
+                                            context.startActivity(mapIntent)
+                                        } catch (e: Exception) {
+                                            val browserUri = Uri.parse("https://www.google.com/maps?q=$lat,$lon")
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, browserUri))
+                                        }
+                                    }
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                                Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (isCurrentUser) Color.White else Color.Unspecified)
+                                Text(" Toque para abrir no mapa", style = MaterialTheme.typography.labelSmall, color = if (isCurrentUser) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     } else if (message.type == MessageType.LOCATION) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                             Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp), tint = if (isCurrentUser) Color.White else Color.Unspecified)

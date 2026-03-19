@@ -99,6 +99,25 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    fun addContactByUsername(username: String) {
+        viewModelScope.launch {
+            try {
+                val user = userRepository.getUserByUsername(username)
+                if (user != null) {
+                    if (user.id == currentUserId) {
+                        _error.value = "Você não pode adicionar a si mesmo."
+                    } else {
+                        contactRepository.addContact(currentUserId, user.id)
+                    }
+                } else {
+                    _error.value = "Usuário não encontrado."
+                }
+            } catch (e: Exception) {
+                _error.value = "Erro ao adicionar contato: ${e.message}"
+            }
+        }
+    }
+
     fun addContactByEmail(email: String) {
         viewModelScope.launch {
             try {

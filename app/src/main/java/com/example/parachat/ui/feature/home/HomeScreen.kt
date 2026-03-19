@@ -72,8 +72,8 @@ fun HomeScreen(
     if (showAddContactDialog) {
         AddContactDialog(
             onDismiss = { showAddContactDialog = false },
-            onAdd = { email ->
-                viewModel.addContactByEmail(email)
+            onAdd = { username ->
+                viewModel.addContactByUsername(username)
                 showAddContactDialog = false
             },
             onImport = {
@@ -162,16 +162,17 @@ fun HomeScreen(
 
 @Composable
 fun AddContactDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit, onImport: () -> Unit) {
-    var email by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Adicionar Contato") },
         text = {
             Column {
                 OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("E-mail do contato") },
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Nome de usuário") },
+                    placeholder = { Text("ex: joaosilva") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -186,7 +187,7 @@ fun AddContactDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit, onImport: (
             }
         },
         confirmButton = {
-            Button(onClick = { onAdd(email) }, enabled = email.isNotBlank()) {
+            Button(onClick = { onAdd(username) }, enabled = username.isNotBlank()) {
                 Text("Adicionar")
             }
         },
