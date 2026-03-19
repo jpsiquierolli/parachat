@@ -7,30 +7,61 @@ import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.tasks.await
+import com.example.parachat.data.room.ParachatDatabase
 import com.example.parachat.domain.User
 import com.example.parachat.domain.UserRepository
 import com.example.parachat.domain.UserStatus
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class FirebaseUserRepository(
-    private val database: FirebaseDatabase
+    private val database: FirebaseDatabase,
+    private val localDb: ParachatDatabase
 ) : UserRepository {
 
+    private val repositoryScope = CoroutineScope(Dispatchers.IO)
     private val usersRef = database.getReference("users")
+    private val userDao = localDb.userDao
 
     override suspend fun insert(user: User) {
         usersRef.child(user.id).setValue(user).await()
+        userDao.insert(com.example.parachat.data.room.user.UserEntity(
+            id = user.id,
+            email = user.email,
+            username = user.username
+        ))
     }
 
     override fun getAll(): Flow<List<User>> = callbackFlow {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val users = snapshot.children.mapNotNull { it.getValue(User::class.java) }
+                
+                // Cache to Room
+                repositoryScope.launch {
+                    users.forEach { user ->
+                        userDao.insert(com.example.parachat.data.room.user.UserEntity(
+                            id = user.id,
+                            email = user.email,
+                            username = user.username
+                        ))
+                    }
+                }
+                
                 trySend(users)
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                // On error/offline, try to load from Room
+                repositoryScope.launch {
+                    userDao.getAll().collect { entities ->
+                        val users = entities.map { User(id = it.id, email = it.email, username = it.username) }
+                        trySend(users)
+                    }
+                }
             }
         }
         usersRef.addValueEventListener(listener)
@@ -59,4 +90,3 @@ class FirebaseUserRepository(
         usersRef.child(userId).updateChildren(updates).await()
     }
 }
-

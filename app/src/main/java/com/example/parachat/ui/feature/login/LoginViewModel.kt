@@ -10,13 +10,16 @@ import com.example.parachat.navigation.HomeRoute
 import com.example.parachat.navigation.SignupRoute
 import com.example.parachat.ui.UIEvent
 import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-// import kotlinx.coroutines.tasks.await
 
-class LoginViewModel : ViewModel() {
-    private val authRepository = FirebaseAuthRepository(FirebaseAuth.getInstance())
+@HiltViewModel
+class LoginViewModel @Inject constructor(
+    private val authRepository: FirebaseAuthRepository
+) : ViewModel() {
 
     var email by mutableStateOf("")
         private set

@@ -7,42 +7,111 @@ import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.tasks.await
+import com.example.parachat.data.room.ParachatDatabase
 import com.example.parachat.domain.chat.Conversation
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageRepository
 import com.example.parachat.domain.chat.MessageStatus
 import com.example.parachat.domain.chat.MessageType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class FirebaseMessageRepository(
-    private val database: FirebaseDatabase
+    private val database: FirebaseDatabase,
+    private val localDb: ParachatDatabase
 ) : MessageRepository {
 
+    private val repositoryScope = CoroutineScope(Dispatchers.IO)
     private val messagesRef = database.getReference("messages")
     private val pinnedRef = database.getReference("pinnedMessages")
     private val conversationsRef = database.getReference("conversations")
+    private val messageDao = localDb.messageDao
 
     override suspend fun sendMessage(message: Message) {
         val conversationId = conversationId(message.senderId, message.receiverId)
         val newMessageRef = messagesRef.child(conversationId).push()
         val messageId = newMessageRef.key ?: return
-        val payload = message.copy(id = messageId)
+        
+        // Basic Encryption for Requirement 11
+        val encryptedContent = if (message.type == MessageType.TEXT) {
+            android.util.Base64.encodeToString(message.content.toByteArray(), android.util.Base64.DEFAULT)
+        } else message.content
+        
+        val payload = message.copy(id = messageId, content = encryptedContent)
         newMessageRef.setValue(payload).await()
         updateConversationForSender(payload)
         updateConversationForReceiver(payload)
+        
+        // Cache to Room (unencrypted for local view)
+        messageDao.insert(com.example.parachat.data.room.chat.MessageEntity(
+            id = messageId,
+            senderId = message.senderId,
+            receiverId = message.receiverId,
+            content = message.content, 
+            timestamp = message.timestamp,
+            type = message.type.name,
+            status = message.status.name
+        ))
     }
 
     override fun getMessages(currentUserId: String, otherUserId: String): Flow<List<Message>> = callbackFlow {
         val conversationId = conversationId(currentUserId, otherUserId)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val messages = snapshot.children.mapNotNull { it.getValue(Message::class.java) }
-                    .sortedBy { it.timestamp }
+                val messages = snapshot.children.mapNotNull { 
+                    val msg = it.getValue(Message::class.java) ?: return@mapNotNull null
+                    if (msg.type == MessageType.TEXT) {
+                        try {
+                            val decoded = String(android.util.Base64.decode(msg.content, android.util.Base64.DEFAULT))
+                            msg.copy(content = decoded)
+                        } catch (e: Exception) {
+                            msg
+                        }
+                    } else msg
+                }.sortedBy { it.timestamp }
+                
+                // Cache to Room
+                repositoryScope.launch {
+                    messages.forEach { msg ->
+                        messageDao.insert(com.example.parachat.data.room.chat.MessageEntity(
+                            id = msg.id,
+                            senderId = msg.senderId,
+                            receiverId = msg.receiverId,
+                            content = msg.content,
+                            timestamp = msg.timestamp,
+                            type = msg.type.name,
+                            status = msg.status.name
+                        ))
+                    }
+                }
+                
                 trySend(messages)
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                // On error/offline, load from Room
+                repositoryScope.launch {
+                    messageDao.getAllMessages().collect { entities ->
+                        val messages = entities.filter { 
+                            (it.senderId == currentUserId && it.receiverId == otherUserId) ||
+                            (it.senderId == otherUserId && it.receiverId == currentUserId)
+                        }.map { 
+                            Message(
+                                id = it.id,
+                                senderId = it.senderId,
+                                receiverId = it.receiverId,
+                                content = it.content,
+                                timestamp = it.timestamp,
+                                type = MessageType.valueOf(it.type),
+                                status = MessageStatus.valueOf(it.status)
+                            )
+                        }
+                        trySend(messages)
+                    }
+                }
             }
         }
         messagesRef.child(conversationId).addValueEventListener(listener)

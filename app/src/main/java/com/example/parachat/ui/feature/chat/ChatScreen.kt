@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -62,7 +63,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.google.android.gms.location.LocationServices
 import com.example.parachat.domain.chat.Message
@@ -77,26 +78,25 @@ fun ChatScreen(
     userId: String,
     onBackClick: () -> Unit
 ) {
-    val viewModel = viewModel<ChatViewModel>()
+    val viewModel = hiltViewModel<ChatViewModel>()
     val messages by viewModel.messages.collectAsState()
     val messageText by viewModel.messageText.collectAsState()
+    val otherUser by viewModel.otherUser.collectAsState()
+    val pinnedMessage by viewModel.pinnedMessage.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
     val currentUserId = viewModel.currentUserId
     val context = LocalContext.current
 
-    val pinnedMessage by viewModel.pinnedMessage.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
     var recorder: MediaRecorder? by remember { mutableStateOf(null) }
     var audioFile: File? by remember { mutableStateOf(null) }
-    var showBottomSheet by remember { mutableStateOf(false) }
+    var showMediaOptions by remember { mutableStateOf(false) }
 
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) {
-            Toast.makeText(context, "Permissão de áudio concedida. Tente gravar novamente.", Toast.LENGTH_SHORT).show()
-        } else {
+        if (!isGranted) {
             Toast.makeText(context, "Permissão de áudio negada", Toast.LENGTH_SHORT).show()
         }
     }
@@ -106,10 +106,10 @@ fun ChatScreen(
     ) { uri: Uri? ->
         uri?.let {
             val bytes = readBytesFromUri(context, it)
-            val mimeType = context.contentResolver.getType(it) ?: "application/octet-stream"
-            val extension = if (mimeType.contains("video")) "mp4" else "jpg"
-            val type = if (mimeType.contains("video")) MessageType.VIDEO else MessageType.IMAGE
             if (bytes != null) {
+                val mimeType = context.contentResolver.getType(it) ?: "image/jpeg"
+                val extension = if (mimeType.contains("video")) "mp4" else "jpg"
+                val type = if (mimeType.contains("video")) MessageType.VIDEO else MessageType.IMAGE
                 viewModel.sendMedia(bytes, extension, mimeType, type)
             }
         }
@@ -125,25 +125,23 @@ fun ChatScreen(
             viewModel.sendMedia(bytes, "jpg", "image/jpeg", MessageType.IMAGE)
         }
     }
-    
-    val locationLauncher = rememberLauncherForActivityResult(
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-             getCurrentLocation(context) { lat, long ->
-                 val message = Message(
-                     senderId = currentUserId,
-                     receiverId = userId,
-                     content = "Lat: $lat, Long: $long",
-                     type = MessageType.LOCATION,
-                     latitude = lat,
-                     longitude = long,
-                     timestamp = System.currentTimeMillis()
-                 )
-                 viewModel.sendLocationMessage(message)
-             }
-        } else {
-            Toast.makeText(context, "Permissão de localização negada", Toast.LENGTH_SHORT).show()
+            getCurrentLocation(context) { lat, long ->
+                val message = Message(
+                    senderId = currentUserId,
+                    receiverId = userId,
+                    content = "Localização: $lat, $long",
+                    type = MessageType.LOCATION,
+                    latitude = lat,
+                    longitude = long,
+                    timestamp = System.currentTimeMillis()
+                )
+                viewModel.sendLocationMessage(message)
+            }
         }
     }
 
@@ -162,12 +160,12 @@ fun ChatScreen(
         val file = File(context.cacheDir, "audio_record.mp3")
         audioFile = file
         
-        val newRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        recorder = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             MediaRecorder(context)
         } else {
             @Suppress("DEPRECATION")
             MediaRecorder()
-        }.apply {
+        }).apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -176,12 +174,10 @@ fun ChatScreen(
                 prepare()
                 start()
                 isRecording = true
-                Toast.makeText(context, "Gravando...", Toast.LENGTH_SHORT).show()
             } catch (e: IOException) {
                 e.printStackTrace()
             }
         }
-        recorder = newRecorder
     }
 
     fun stopRecording() {
@@ -194,7 +190,6 @@ fun ChatScreen(
             audioFile?.let { file ->
                 val bytes = file.readBytes()
                 viewModel.sendMedia(bytes, "mp3", "audio/mpeg", MessageType.AUDIO)
-                Toast.makeText(context, "Áudio enviado!", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -204,257 +199,217 @@ fun ChatScreen(
 
     Scaffold(
         topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(text = otherUser?.username ?: "Chat")
+                        otherUser?.let {
+                            Text(
+                                text = it.status,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (it.status == "ONLINE") Color(0xFF4CAF50) else Color.Gray
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { isSearchActive = !isSearchActive }) {
+                        Icon(Icons.Default.Search, contentDescription = "Buscar")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
             if (isSearchActive) {
-                TopAppBar(
-                    title = {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { viewModel.onSearchQueryChange(it) },
-                            placeholder = { Text("Buscar na conversa...") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                    },
-                    navigationIcon = {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = viewModel::onSearchQueryChange,
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    placeholder = { Text("Buscar mensagens...") },
+                    trailingIcon = {
                         IconButton(onClick = { 
                             isSearchActive = false
                             viewModel.onSearchQueryChange("")
                         }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Fechar busca")
-                        }
-                    }
-                )
-            } else {
-                TopAppBar(
-                    title = { Text(text = "Chat") },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                            Icon(Icons.Default.Close, contentDescription = "Fechar")
                         }
                     },
-                    actions = {
-                        IconButton(onClick = { isSearchActive = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "Buscar")
-                        }
-                    }
+                    singleLine = true
                 )
             }
-        },
-        bottomBar = {
-            Column {
-                 // Pinned Message Area
-                 if (pinnedMessage != null) {
-                     Card(
-                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                         modifier = Modifier
-                             .fillMaxWidth()
-                             .padding(8.dp)
-                             .clickable {
-                                 // Scroll to message or unpin logic
-                                 // For now just allow verify unpin
-                             }
-                     ) {
-                         Row(
-                             modifier = Modifier.padding(8.dp),
-                             verticalAlignment = Alignment.CenterVertically
-                         ) {
-                             Icon(Icons.Default.PushPin, contentDescription = "Fixado", modifier = Modifier.size(16.dp))
-                             Spacer(modifier = Modifier.size(8.dp))
-                             Column(modifier = Modifier.weight(1f)) {
-                                 Text(text = "Mensagem Fixada", style = MaterialTheme.typography.labelSmall)
-                                 Text(text = pinnedMessage?.content ?: "Mídia", style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                             }
-                             IconButton(onClick = { viewModel.unpinMessage() }) {
-                                 Icon(Icons.Default.Close, contentDescription = "Desfixar", modifier = Modifier.size(16.dp))
-                             }
-                         }
-                     }
-                 }
 
-                 if (showBottomSheet) {
-                     MediaBottomSheet(
-                         onDismiss = { showBottomSheet = false },
-                         onGalleryClick = { 
-                             showBottomSheet = false
-                             galleryLauncher.launch("image/*") 
-                         },
-                         onCameraClick = { 
-                             showBottomSheet = false
-                             cameraLauncher.launch(null) 
-                         },
-                         onLocationClick = {
-                             showBottomSheet = false
-                             if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                                 getCurrentLocation(context) { lat, long ->
-                                     val message = Message(
-                                         senderId = currentUserId,
-                                         receiverId = userId,
-                                         content = "Lat: $lat, Long: $long",
-                                         type = MessageType.LOCATION,
-                                         latitude = lat,
-                                         longitude = long,
-                                         timestamp = System.currentTimeMillis()
-                                     )
-                                     viewModel.sendLocationMessage(message)
-                                 }
-                             } else {
-                                locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                             }
-                         },
-                         onAudioClick = {
-                             showBottomSheet = false
-                             startRecording()
-                         }
-                     )
-                 }
-                
-                // Recording Indicator / Input Area
-                if (isRecording) {
+            pinnedMessage?.let { msg ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.Red.copy(alpha = 0.1f))
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text("Gravando áudio... ", color = Color.Red)
-                        IconButton(onClick = { stopRecording() }) {
-                            Icon(Icons.Default.Stop, contentDescription = "Parar", tint = Color.Red)
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
+                        modifier = Modifier.padding(8.dp).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { showBottomSheet = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Anexar")
-                        }
-                        OutlinedTextField(
-                            value = messageText,
-                            onValueChange = { viewModel.onMessageChange(it) },
+                        Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (msg.type == MessageType.TEXT) msg.content else "[Mídia]",
+                            style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.weight(1f),
-                            placeholder = { Text("Mensagem") }
+                            maxLines = 1
                         )
-                        IconButton(onClick = { viewModel.sendMessage() }) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar")
+                        IconButton(onClick = { viewModel.unpinMessage() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Desafixar", modifier = Modifier.size(16.dp))
                         }
                     }
                 }
             }
-        }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(8.dp),
-            reverseLayout = true
-        ) {
-            items(messages.reversed()) { message ->
-                MessageItem(
-                    message = message,
-                    isCurrentUser = message.senderId == currentUserId,
-                    onLongClick = {
-                        viewModel.pinMessage(message)
-                        Toast.makeText(context, "Mensagem fixada!", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
-        }
-    }
-}
 
-@Composable
-fun MessageItem(
-    message: Message,
-    isCurrentUser: Boolean,
-    onLongClick: () -> Unit = {}
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        contentAlignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(
-                    if (isCurrentUser) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant
-                )
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onLongPress = { onLongClick() }
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                reverseLayout = true
+            ) {
+                items(messages.reversed()) { message ->
+                    MessageBubble(
+                        message = message,
+                        isCurrentUser = message.senderId == currentUserId,
+                        onLongClick = { viewModel.pinMessage(message) }
                     )
                 }
-                .padding(8.dp)
-        ) {
-            Text(
-                text = message.content,
-                color = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            if (message.type == MessageType.IMAGE && message.mediaUrl != null) {
-                AsyncImage(
-                    model = message.mediaUrl,
-                    contentDescription = "Imagem enviada",
-                    modifier = Modifier
-                        .padding(top = 4.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+            }
+
+            if (showMediaOptions) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    IconButton(onClick = { galleryLauncher.launch("image/*") }) {
+                        Icon(Icons.Default.Image, contentDescription = "Galeria")
+                    }
+                    IconButton(onClick = { cameraLauncher.launch(null) }) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = "Câmera")
+                    }
+                    IconButton(onClick = { 
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                            getCurrentLocation(context) { lat, long ->
+                                val message = Message(
+                                    senderId = currentUserId,
+                                    receiverId = userId,
+                                    content = "Localização: $lat, $long",
+                                    type = MessageType.LOCATION,
+                                    latitude = lat,
+                                    longitude = long,
+                                    timestamp = System.currentTimeMillis()
+                                )
+                                viewModel.sendLocationMessage(message)
+                            }
+                        } else {
+                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                    }) {
+                        Icon(Icons.Default.LocationOn, contentDescription = "Localização")
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { showMediaOptions = !showMediaOptions }) {
+                    Icon(if (showMediaOptions) Icons.Default.Close else Icons.Default.Add, contentDescription = "Opções")
+                }
+                OutlinedTextField(
+                    value = messageText,
+                    onValueChange = viewModel::onMessageChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Mensagem") },
+                    maxLines = 4
                 )
-            } else if (message.type == MessageType.LOCATION) {
-                Text(
-                     text = "📍 Localização",
-                     color = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else if (message.type == MessageType.AUDIO) {
-                 Row(verticalAlignment = Alignment.CenterVertically) {
-                     Icon(Icons.Default.Mic, contentDescription = null, tint = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
-                     Text(" Áudio", color = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
-                 }
+                if (messageText.isBlank()) {
+                    IconButton(onClick = { if (isRecording) stopRecording() else startRecording() }) {
+                        Icon(if (isRecording) Icons.Default.Stop else Icons.Default.Mic, 
+                             contentDescription = "Áudio",
+                             tint = if (isRecording) Color.Red else MaterialTheme.colorScheme.primary)
+                    }
+                } else {
+                    IconButton(onClick = { viewModel.sendMessage() }) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar")
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun MediaBottomSheet(
-    onDismiss: () -> Unit,
-    onGalleryClick: () -> Unit,
-    onCameraClick: () -> Unit,
-    onLocationClick: () -> Unit,
-    onAudioClick: () -> Unit
+fun MessageBubble(
+    message: Message,
+    isCurrentUser: Boolean,
+    onLongClick: () -> Unit
 ) {
-    // A simple row of options since standard BottomSheet needs more setup in M3
-   Row(
-       modifier = Modifier
-           .fillMaxWidth()
-           .background(MaterialTheme.colorScheme.surface)
-           .padding(16.dp),
-       horizontalArrangement = Arrangement.SpaceEvenly
-   ) {
-       MediaOption(icon = Icons.Default.Image, label = "Galeria", onClick = onGalleryClick)
-       MediaOption(icon = Icons.Default.CameraAlt, label = "Câmera", onClick = onCameraClick)
-       MediaOption(icon = Icons.Default.LocationOn, label = "Local", onClick = onLocationClick)
-       MediaOption(icon = Icons.Default.Mic, label = "Áudio", onClick = onAudioClick)
-   }
-}
+    val alignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
+    val containerColor = if (isCurrentUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
 
-@Composable
-fun MediaOption(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick)
-    ) {
-        Icon(icon, contentDescription = label)
-        Text(text = label, style = MaterialTheme.typography.bodySmall)
+    Box(modifier = Modifier.fillMaxWidth().padding(8.dp), contentAlignment = alignment) {
+        Card(
+            modifier = Modifier.pointerInput(Unit) {
+                detectTapGestures(onLongPress = { onLongClick() })
+            },
+            colors = CardDefaults.cardColors(containerColor = containerColor),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                when (message.type) {
+                    MessageType.TEXT -> Text(text = message.content)
+                    MessageType.IMAGE -> {
+                        AsyncImage(
+                            model = message.mediaUrl,
+                            contentDescription = null,
+                            modifier = Modifier.size(200.dp).clip(RoundedCornerShape(8.dp))
+                        )
+                    }
+                    MessageType.LOCATION -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Localização", color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { 
+                                // Action to open map could be added here
+                            })
+                        }
+                    }
+                    MessageType.AUDIO -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Mensagem de Voz")
+                        }
+                    }
+                    else -> Text(text = "[Mídia]")
+                }
+                Spacer(modifier = Modifier.size(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.End)) {
+                    Text(
+                        text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(message.timestamp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    if (isCurrentUser) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        val statusIcon = when (message.status) {
+                            com.example.parachat.domain.chat.MessageStatus.SENT -> "✓"
+                            com.example.parachat.domain.chat.MessageStatus.DELIVERED -> "✓✓"
+                            com.example.parachat.domain.chat.MessageStatus.READ -> "✓✓"
+                        }
+                        val statusColor = if (message.status == com.example.parachat.domain.chat.MessageStatus.READ) Color.Blue else Color.Gray
+                        Text(text = statusIcon, color = statusColor, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -482,8 +437,6 @@ private fun getCurrentLocation(context: Context, onLocation: (Double, Double) ->
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
             if (location != null) {
                 onLocation(location.latitude, location.longitude)
-            } else {
-                 Toast.makeText(context, "Localização não disponível", Toast.LENGTH_SHORT).show()
             }
         }
     } catch (e: SecurityException) {

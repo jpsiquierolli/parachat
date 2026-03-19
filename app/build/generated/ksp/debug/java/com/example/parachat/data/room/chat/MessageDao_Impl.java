@@ -37,7 +37,7 @@ public final class MessageDao_Impl implements MessageDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `messages` (`id`,`senderId`,`receiverId`,`content`,`timestamp`) VALUES (?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `messages` (`id`,`senderId`,`receiverId`,`content`,`timestamp`,`type`,`status`) VALUES (?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -48,6 +48,8 @@ public final class MessageDao_Impl implements MessageDao {
         statement.bindString(3, entity.getReceiverId());
         statement.bindString(4, entity.getContent());
         statement.bindLong(5, entity.getTimestamp());
+        statement.bindString(6, entity.getType());
+        statement.bindString(7, entity.getStatus());
       }
     };
   }
@@ -113,6 +115,8 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfReceiverId = CursorUtil.getColumnIndexOrThrow(_cursor, "receiverId");
           final int _cursorIndexOfContent = CursorUtil.getColumnIndexOrThrow(_cursor, "content");
           final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
+          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
+          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final List<MessageEntity> _result = new ArrayList<MessageEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final MessageEntity _item;
@@ -126,7 +130,11 @@ public final class MessageDao_Impl implements MessageDao {
             _tmpContent = _cursor.getString(_cursorIndexOfContent);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-            _item = new MessageEntity(_tmpId,_tmpSenderId,_tmpReceiverId,_tmpContent,_tmpTimestamp);
+            final String _tmpType;
+            _tmpType = _cursor.getString(_cursorIndexOfType);
+            final String _tmpStatus;
+            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
+            _item = new MessageEntity(_tmpId,_tmpSenderId,_tmpReceiverId,_tmpContent,_tmpTimestamp,_tmpType,_tmpStatus);
             _result.add(_item);
           }
           return _result;
@@ -157,6 +165,8 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfReceiverId = CursorUtil.getColumnIndexOrThrow(_cursor, "receiverId");
           final int _cursorIndexOfContent = CursorUtil.getColumnIndexOrThrow(_cursor, "content");
           final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
+          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
+          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final List<MessageEntity> _result = new ArrayList<MessageEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final MessageEntity _item;
@@ -170,7 +180,11 @@ public final class MessageDao_Impl implements MessageDao {
             _tmpContent = _cursor.getString(_cursorIndexOfContent);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-            _item = new MessageEntity(_tmpId,_tmpSenderId,_tmpReceiverId,_tmpContent,_tmpTimestamp);
+            final String _tmpType;
+            _tmpType = _cursor.getString(_cursorIndexOfType);
+            final String _tmpStatus;
+            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
+            _item = new MessageEntity(_tmpId,_tmpSenderId,_tmpReceiverId,_tmpContent,_tmpTimestamp,_tmpType,_tmpStatus);
             _result.add(_item);
           }
           return _result;

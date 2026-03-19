@@ -8,22 +8,27 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-// import kotlinx.coroutines.tasks.await
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.firebase.user.FirebaseUserRepository
 import com.example.parachat.domain.User
+import com.example.parachat.domain.UserRepository
 import com.example.parachat.domain.UserStatus
 import com.example.parachat.navigation.HomeRoute
 import com.example.parachat.navigation.LoginRoute
 import com.example.parachat.ui.UIEvent
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 
-class SignupViewModel : ViewModel() {
-
-    private val authRepository = FirebaseAuthRepository(FirebaseAuth.getInstance())
-    private val userRepository = FirebaseUserRepository(FirebaseDatabase.getInstance())
+@HiltViewModel
+class SignupViewModel @Inject constructor(
+    private val authRepository: FirebaseAuthRepository,
+    private val userRepository: UserRepository
+) : ViewModel() {
 
     var username by mutableStateOf("")
         private set
@@ -104,7 +109,7 @@ class SignupViewModel : ViewModel() {
 
                 // Try to save profile with timeout, but do not block navigation if it fails/times out
                 try {
-                    withTimeout(5000L) {
+                    withTimeout(15000L) {
                         saveUserProfile(userId, email, username)
                     }
                 } catch (e: TimeoutCancellationException) {

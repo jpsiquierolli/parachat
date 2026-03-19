@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -12,12 +14,15 @@ import com.example.parachat.data.SupabaseProvider
 import com.example.parachat.data.firebase.user.FirebaseUserRepository
 import com.example.parachat.data.supabase.storage.MediaStorageRepository
 import com.example.parachat.domain.User
+import com.example.parachat.domain.UserRepository
 
-class ProfileViewModel : ViewModel() {
+@HiltViewModel
+class ProfileViewModel @Inject constructor(
+    private val authRepository: FirebaseAuthRepository,
+    private val userRepository: UserRepository
+) : ViewModel() {
 
-    private val authRepository = FirebaseAuthRepository(FirebaseAuth.getInstance())
-    private val userRepository = FirebaseUserRepository(FirebaseDatabase.getInstance())
-    private val storageRepository = MediaStorageRepository(SupabaseProvider.client, "user-media")
+    private val storageRepository = MediaStorageRepository(SupabaseProvider.client, "chat-media")
 
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser = _currentUser.asStateFlow()
@@ -40,6 +45,7 @@ class ProfileViewModel : ViewModel() {
             }
         }
     }
+
 
     fun updateProfile(username: String, about: String) {
         val user = _currentUser.value ?: return

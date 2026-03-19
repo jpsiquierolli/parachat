@@ -42,7 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import java.io.ByteArrayOutputStream
 
@@ -51,7 +51,7 @@ import java.io.ByteArrayOutputStream
 fun ProfileScreen(
     onBackClick: () -> Unit
 ) {
-    val viewModel = viewModel<ProfileViewModel>()
+    val viewModel = hiltViewModel<ProfileViewModel>()
     val currentUser by viewModel.currentUser.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()

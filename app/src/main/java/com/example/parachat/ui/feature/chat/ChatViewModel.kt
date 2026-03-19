@@ -4,27 +4,31 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.SupabaseProvider
 import com.example.parachat.data.firebase.chat.FirebaseMessageRepository
 import com.example.parachat.data.supabase.storage.MediaStorageRepository
 import com.example.parachat.domain.User
+import com.example.parachat.domain.UserRepository
 import com.example.parachat.domain.chat.Message
+import com.example.parachat.domain.chat.MessageRepository
 import com.example.parachat.domain.chat.MessageType
 import com.example.parachat.navigation.ChatRoute
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class ChatViewModel(
+@HiltViewModel
+class ChatViewModel @Inject constructor(
+    private val authRepository: FirebaseAuthRepository,
+    private val messageRepository: MessageRepository,
+    private val userRepository: UserRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-
-    private val authRepository = FirebaseAuthRepository(FirebaseAuth.getInstance())
-    private val messageRepository = FirebaseMessageRepository(FirebaseDatabase.getInstance())
-    private val storageRepository = MediaStorageRepository(SupabaseProvider.client)
 
     private val args = savedStateHandle.toRoute<ChatRoute>()
     val chatUserId = args.userId
@@ -36,8 +40,8 @@ class ChatViewModel(
     private val _messageText = MutableStateFlow("")
     val messageText = _messageText.asStateFlow()
 
-    private val _currentUser = MutableStateFlow<User?>(null)
-    val currentUser = _currentUser.asStateFlow()
+    private val _otherUser = MutableStateFlow<User?>(null)
+    val otherUser = _otherUser.asStateFlow()
 
     private val _pinnedMessage = MutableStateFlow<Message?>(null)
     val pinnedMessage = _pinnedMessage.asStateFlow()
@@ -45,31 +49,47 @@ class ChatViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
+    private val storageRepository = MediaStorageRepository(SupabaseProvider.client)
+
     private var allMessagesCache = emptyList<Message>()
 
     init {
-        loadMessages()
-        observePinnedMessage()
+        loadData()
+        markAsRead()
     }
 
-    private fun loadMessages() {
+    private fun loadData() {
         if (currentUserId.isBlank()) return
         
         viewModelScope.launch {
-            messageRepository.getMessages(currentUserId, chatUserId).collect {
-                allMessagesCache = it.sortedBy { message -> message.timestamp }
-                onSearchQueryChange(_searchQuery.value)
+            // Observe other user
+            launch {
+                userRepository.observeUser(chatUserId).collect {
+                    _otherUser.value = it
+                }
+            }
+
+            // Observe messages
+            launch {
+                messageRepository.getMessages(currentUserId, chatUserId).collect {
+                    allMessagesCache = it.sortedBy { message -> message.timestamp }
+                    onSearchQueryChange(_searchQuery.value)
+                }
+            }
+
+            // Observe pinned
+            launch {
+                messageRepository.observePinnedMessage(currentUserId, chatUserId).collect {
+                    _pinnedMessage.value = it
+                }
             }
         }
     }
 
-    private fun observePinnedMessage() {
-         if (currentUserId.isBlank()) return
-         viewModelScope.launch {
-             messageRepository.observePinnedMessage(currentUserId, chatUserId).collect {
-                 _pinnedMessage.value = it
-             }
-         }
+    private fun markAsRead() {
+        viewModelScope.launch {
+            messageRepository.markConversationAsRead(currentUserId, chatUserId)
+        }
     }
 
     fun onMessageChange(text: String) {

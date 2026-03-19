@@ -80,6 +80,10 @@ dependencies {
     // Dagger Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
+    implementation(libs.androidx.hilt.navigation.compose)
+
+    // Kotlinx Coroutines Play Services
+    implementation(libs.kotlinx.coroutines.play.services)
 
     // Kotlinx Serialization
     implementation(libs.kotlinx.serialization.json)
@@ -96,6 +100,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
 
     implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-messaging")
 
     testImplementation(libs.junit)
 
@@ -105,4 +110,10 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("com.squareup:javapoet:1.13.0")
+    }
 }

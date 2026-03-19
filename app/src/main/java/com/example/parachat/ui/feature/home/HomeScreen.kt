@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,31 +31,41 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.parachat.domain.User
+import com.example.parachat.domain.chat.Conversation
 import com.example.parachat.ui.theme.ParachatTheme
 
 @Composable
 fun HomeScreen(
     onUserClick: (String) -> Unit,
+    onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
-    val viewModel = viewModel<HomeViewModel>()
+    val viewModel = hiltViewModel<HomeViewModel>()
     val users by viewModel.users.collectAsState()
+    val conversations by viewModel.conversations.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     HomeContent(
         users = users,
+        conversations = conversations,
         currentUser = currentUser,
         searchQuery = searchQuery,
+        isLoading = isLoading,
         onSearchQueryChange = viewModel::onSearchQueryChange,
         onUserClick = onUserClick,
+        onCreateGroupClick = onCreateGroupClick,
         onProfileClick = onProfileClick,
         onSignOut = {
             viewModel.signOut()
@@ -66,13 +78,18 @@ fun HomeScreen(
 @Composable
 fun HomeContent(
     users: List<User>,
+    conversations: List<Conversation>,
     currentUser: User?,
     searchQuery: String,
+    isLoading: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onUserClick: (String) -> Unit,
+    onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
+    var showUserSearch by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -86,6 +103,21 @@ fun HomeContent(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                if (!showUserSearch) {
+                    androidx.compose.material3.SmallFloatingActionButton(
+                        onClick = onCreateGroupClick,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Novo Grupo")
+                    }
+                }
+                androidx.compose.material3.FloatingActionButton(onClick = { showUserSearch = !showUserSearch }) {
+                    Icon(if (showUserSearch) Icons.Default.Close else Icons.Default.Search, contentDescription = "Novo Chat")
+                }
+            }
         }
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues)) {
@@ -93,31 +125,104 @@ fun HomeContent(
                 Text(
                     text = "Logado como: ${currentUser.username}",
                     style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
 
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                placeholder = { Text("Buscar usuários...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
-                singleLine = true
-            )
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(users) { user ->
-                    UserItem(user = user, onClick = { onUserClick(user.id) })
+            if (showUserSearch || searchQuery.isNotBlank()) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    placeholder = { Text("Buscar usuários...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
+                    singleLine = true
+                )
+                
+                if (users.isEmpty() && searchQuery.isNotBlank()) {
+                    Box(modifier = Modifier.padding(16.dp)) {
+                        Text("Nenhum usuário encontrado.")
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(users) { user ->
+                            UserItem(user = user, onClick = { 
+                                onUserClick(user.id)
+                                onSearchQueryChange("")
+                                showUserSearch = false
+                            })
+                        }
+                    }
+                }
+            } else {
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.CircularProgressIndicator()
+                    }
+                } else if (conversations.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Nenhuma conversa iniciada.")
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(conversations) { conversation ->
+                            ConversationItem(conversation = conversation, onClick = { onUserClick(conversation.otherUserId) })
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+@Composable
+fun ConversationItem(conversation: Conversation, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(56.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(28.dp))
+            }
+        }
+        Spacer(modifier = Modifier.size(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = conversation.title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = conversation.lastMessagePreview,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        if (conversation.unreadCount > 0) {
+            Surface(
+                color = MaterialTheme.colorScheme.primary,
+                shape = CircleShape,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = conversation.unreadCount.toString(),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+        }
+    }
+}
+
 
 @Composable
 fun UserItem(user: User, onClick: () -> Unit) {
@@ -165,10 +270,13 @@ fun HomeContentPreview() {
                 User(id = "1", username = "Alice", email = "alice@example.com"),
                 User(id = "2", username = "Bob", email = "bob@example.com")
             ),
+            conversations = emptyList(),
             currentUser = User(id = "3", username = "Me", email = "me@example.com"),
             searchQuery = "",
+            isLoading = false,
             onSearchQueryChange = {},
             onUserClick = {},
+            onCreateGroupClick = {},
             onProfileClick = {},
             onSignOut = {}
         )

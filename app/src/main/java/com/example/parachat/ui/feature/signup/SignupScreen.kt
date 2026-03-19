@@ -22,7 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.parachat.navigation.HomeRoute
 import com.example.parachat.navigation.LoginRoute
 import com.example.parachat.ui.UIEvent
@@ -36,7 +36,7 @@ fun SignupScreen (
 ) {
     val context = LocalContext.current
 
-    val viewModel = viewModel<SignupViewModel>()
+    val viewModel = hiltViewModel<SignupViewModel>()
 
     val email = viewModel.email
     val username = viewModel.username

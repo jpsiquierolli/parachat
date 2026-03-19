@@ -27,7 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.parachat.ui.theme.ParachatTheme
 
 
@@ -38,7 +38,7 @@ fun LoginScreen(
 ) {
     val context = LocalContext.current
 
-    val viewModel = viewModel<LoginViewModel>()
+    val viewModel = hiltViewModel<LoginViewModel>()
 
     val email = viewModel.email
     val password = viewModel.password
