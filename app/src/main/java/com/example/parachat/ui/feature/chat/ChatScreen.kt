@@ -85,7 +85,6 @@ import coil.compose.AsyncImage
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
-import com.example.parachat.security.MessageEncryption
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageType
 import com.example.parachat.domain.displayName
@@ -351,12 +350,7 @@ fun ChatScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = when (msg.type) {
-                                MessageType.TEXT -> decryptMessageText(
-                                    message = msg,
-                                    currentUserId = currentUserId,
-                                    chatId = chatId,
-                                    isGroupChat = isGroupChat
-                                )
+                                MessageType.TEXT -> msg.content
                                 MessageType.IMAGE -> "[Imagem]"
                                 MessageType.VIDEO -> "[Video]"
                                 MessageType.AUDIO -> "[Audio]"
@@ -506,12 +500,7 @@ fun MessageBubble(
 
                 when (message.type) {
                     MessageType.TEXT -> {
-                        val displayText = decryptMessageText(
-                            message = message,
-                            currentUserId = currentUserId,
-                            chatId = chatId,
-                            isGroupChat = isGroupChat
-                        )
+                        val displayText = message.content
 
                         val annotatedText = if (searchQuery.isNotBlank()) {
                             buildAnnotatedString {
@@ -669,52 +658,6 @@ private fun VideoPlayerDialog(videoUrl: String, onDismiss: () -> Unit) {
     )
 }
 
-private fun decryptMessageText(
-    message: Message,
-    currentUserId: String,
-    chatId: String,
-    isGroupChat: Boolean
-): String {
-    if (message.type != MessageType.TEXT) return message.content
-    val normalized = normalizeLegacyTextPayload(message.content)
-
-    val candidateKeys = buildList {
-        if (currentUserId.isNotBlank() && chatId.isNotBlank()) {
-            add(MessageEncryption.deriveConversationKey(currentUserId, chatId))
-        }
-
-        // Always try the ids stored in the message itself (most reliable fallback).
-        if (message.senderId.isNotBlank() && message.receiverId.isNotBlank()) {
-            add(MessageEncryption.deriveConversationKey(message.senderId, message.receiverId))
-        }
-
-        if (isGroupChat && message.senderId.isNotBlank()) {
-            add(MessageEncryption.deriveConversationKey(message.senderId, chatId))
-        }
-    }
-
-    candidateKeys.forEach { key ->
-        val decrypted = runCatching { MessageEncryption.decrypt(normalized, key) }.getOrNull()
-        if (!decrypted.isNullOrBlank()) return decrypted
-    }
-
-    return normalized
-}
-
-private fun normalizeLegacyTextPayload(content: String): String {
-    val trimmed = content.trim()
-    if (trimmed.isBlank()) return content
-    if (trimmed.length % 4 != 0) return content
-    if (!trimmed.matches(Regex("^[A-Za-z0-9+/=\\n\\r]+$"))) return content
-
-    return runCatching {
-        val decoded = String(android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT), Charsets.UTF_8)
-        val printable = decoded.count { ch -> ch == '\n' || ch == '\r' || ch == '\t' || !ch.isISOControl() }
-        val readableRatio = if (decoded.isEmpty()) 0.0 else printable.toDouble() / decoded.length.toDouble()
-        val hasNaturalText = decoded.any { it.isLetterOrDigit() }
-        if (decoded.isNotBlank() && readableRatio >= 0.98 && hasNaturalText) decoded else content
-    }.getOrDefault(content)
-}
 
 private fun openUrlSafely(context: Context, url: String) {
     val uri = Uri.parse(url)

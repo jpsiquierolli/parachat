@@ -52,7 +52,8 @@ class FirebaseMessageRepository(
         
         val payload = message.copy(
             id = messageId,
-            content = normalizeTextPayload(message.content, message.type),
+            // Keep encrypted payload untouched; decryption happens when reading.
+            content = message.content,
             conversationId = conversationId
         )
         newMessageRef.setValue(payload).await()
@@ -326,14 +327,14 @@ class FirebaseMessageRepository(
     }
 
     private fun decryptForPreview(message: Message): String {
-        val normalized = normalizeTextPayload(message.content, message.type)
-        if (message.type != MessageType.TEXT || normalized.isBlank()) return normalized
+        val raw = message.content
+        if (message.type != MessageType.TEXT || raw.isBlank()) return raw
 
         return try {
             val key = MessageEncryption.deriveConversationKey(message.senderId, message.receiverId)
-            MessageEncryption.decrypt(normalized, key)
+            MessageEncryption.decrypt(raw, key)
         } catch (_: Exception) {
-            normalized
+            decodeLegacyReadableText(raw)
         }
     }
 
@@ -343,8 +344,8 @@ class FirebaseMessageRepository(
         chatId: String,
         isGroup: Boolean
     ): String {
-        val normalized = normalizeTextPayload(message.content, message.type)
-        if (message.type != MessageType.TEXT || normalized.isBlank()) return normalized
+        val raw = message.content
+        if (message.type != MessageType.TEXT || raw.isBlank()) return raw
 
         val candidateKeys = linkedSetOf(
             MessageEncryption.deriveConversationKey(message.senderId, message.receiverId),
@@ -358,24 +359,21 @@ class FirebaseMessageRepository(
         }
 
         candidateKeys.forEach { key ->
-            val decrypted = runCatching { MessageEncryption.decrypt(normalized, key) }.getOrNull()
+            val decrypted = runCatching { MessageEncryption.decrypt(raw, key) }.getOrNull()
             if (!decrypted.isNullOrBlank()) return decrypted
         }
 
-        return normalized
+        return decodeLegacyReadableText(raw)
     }
 
-    private fun normalizeTextPayload(content: String, type: MessageType): String {
-        if (type != MessageType.TEXT) return content
+    private fun decodeLegacyReadableText(content: String): String {
         val trimmed = content.trim()
         if (!looksLikeBase64(trimmed)) return content
 
-        return try {
+        return runCatching {
             val decoded = String(android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT), Charsets.UTF_8)
             if (decoded.isNotBlank() && decoded.isMostlyReadable()) decoded else content
-        } catch (_: Exception) {
-            content
-        }
+        }.getOrDefault(content)
     }
 
     private fun looksLikeBase64(value: String): Boolean {
