@@ -7,6 +7,7 @@ import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
+import android.widget.MediaController
 import android.widget.Toast
 import android.Manifest
 import android.content.Intent
@@ -77,6 +78,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
@@ -88,9 +90,11 @@ import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageType
 import com.example.parachat.domain.displayName
 import com.example.parachat.domain.displayNameFromParts
+import com.example.parachat.domain.chat.MessageStatus
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import android.widget.VideoView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -346,7 +350,19 @@ fun ChatScreen(
                         Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (msg.type == MessageType.TEXT) msg.content else "[Mídia]",
+                            text = when (msg.type) {
+                                MessageType.TEXT -> decryptMessageText(
+                                    message = msg,
+                                    currentUserId = currentUserId,
+                                    chatId = chatId,
+                                    isGroupChat = isGroupChat
+                                )
+                                MessageType.IMAGE -> "[Imagem]"
+                                MessageType.VIDEO -> "[Video]"
+                                MessageType.AUDIO -> "[Audio]"
+                                MessageType.LOCATION -> "[Localizacao]"
+                                MessageType.FILE -> msg.content.ifBlank { "[Arquivo]" }
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.weight(1f),
                             maxLines = 1
@@ -468,6 +484,7 @@ fun MessageBubble(
         isGroupChat -> colorForSender(message.senderId)
         else -> MaterialTheme.colorScheme.secondaryContainer
     }
+    var showVideoPlayer by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth().padding(8.dp), contentAlignment = alignment) {
         Card(
@@ -489,15 +506,12 @@ fun MessageBubble(
 
                 when (message.type) {
                     MessageType.TEXT -> {
-                        val displayText = try {
-                            val decrypted = MessageEncryption.decrypt(
-                                message.content,
-                                MessageEncryption.deriveConversationKey(currentUserId, chatId)
-                            )
-                            decrypted
-                        } catch (e: Exception) {
-                            message.content
-                        }
+                        val displayText = decryptMessageText(
+                            message = message,
+                            currentUserId = currentUserId,
+                            chatId = chatId,
+                            isGroupChat = isGroupChat
+                        )
 
                         val annotatedText = if (searchQuery.isNotBlank()) {
                             buildAnnotatedString {
@@ -536,11 +550,7 @@ fun MessageBubble(
                             modifier = Modifier.clickable {
                                 val url = message.mediaUrl.orEmpty()
                                 if (url.isNotBlank()) {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                                        setDataAndType(Uri.parse(url), "video/*")
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
+                                    showVideoPlayer = true
                                 }
                             }
                         ) {
@@ -582,10 +592,7 @@ fun MessageBubble(
                             modifier = Modifier.clickable {
                                 val url = message.mediaUrl.orEmpty()
                                 if (url.isNotBlank()) {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
+                                    openUrlSafely(context, url)
                                 }
                             }
                         ) {
@@ -605,16 +612,110 @@ fun MessageBubble(
                     if (isCurrentUser) {
                         Spacer(modifier = Modifier.width(4.dp))
                         val statusIcon = when (message.status) {
-                            com.example.parachat.domain.chat.MessageStatus.SENT -> "✓"
-                            com.example.parachat.domain.chat.MessageStatus.DELIVERED -> "✓✓"
-                            com.example.parachat.domain.chat.MessageStatus.READ -> "✓✓"
+                            MessageStatus.SENT -> "✓"
+                            MessageStatus.DELIVERED -> "✓✓"
+                            MessageStatus.READ -> "✓✓"
                         }
-                        val statusColor = if (message.status == com.example.parachat.domain.chat.MessageStatus.READ) Color.Blue else Color.Gray
+                        val statusColor = if (message.status == MessageStatus.READ) Color.Blue else Color.Gray
                         Text(text = statusIcon, color = statusColor, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
         }
+    }
+
+    if (showVideoPlayer) {
+        VideoPlayerDialog(
+            videoUrl = message.mediaUrl.orEmpty(),
+            onDismiss = { showVideoPlayer = false }
+        )
+    }
+}
+
+@Composable
+private fun VideoPlayerDialog(videoUrl: String, onDismiss: () -> Unit) {
+    if (videoUrl.isBlank()) return
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Fechar") }
+        },
+        text = {
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .size(280.dp),
+                factory = { context ->
+                    VideoView(context).apply {
+                        val controller = MediaController(context)
+                        controller.setAnchorView(this)
+                        setMediaController(controller)
+                        setVideoURI(Uri.parse(videoUrl))
+                        setOnPreparedListener { mp ->
+                            mp.isLooping = false
+                            start()
+                        }
+                    }
+                },
+                update = { view ->
+                    if (!view.isPlaying) {
+                        view.setVideoURI(Uri.parse(videoUrl))
+                        view.start()
+                    }
+                }
+            )
+        }
+    )
+}
+
+private fun decryptMessageText(
+    message: Message,
+    currentUserId: String,
+    chatId: String,
+    isGroupChat: Boolean
+): String {
+    if (message.type != MessageType.TEXT) return message.content
+    val normalized = normalizeLegacyTextPayload(message.content)
+
+    val candidateKeys = buildList {
+        add(MessageEncryption.deriveConversationKey(currentUserId, chatId))
+        if (isGroupChat && message.senderId.isNotBlank()) {
+            add(MessageEncryption.deriveConversationKey(message.senderId, chatId))
+        }
+    }
+
+    candidateKeys.forEach { key ->
+        val decrypted = runCatching { MessageEncryption.decrypt(normalized, key) }.getOrNull()
+        if (!decrypted.isNullOrBlank()) return decrypted
+    }
+
+    return normalized
+}
+
+private fun normalizeLegacyTextPayload(content: String): String {
+    val trimmed = content.trim()
+    if (trimmed.isBlank()) return content
+    if (trimmed.length % 4 != 0) return content
+    if (!trimmed.matches(Regex("^[A-Za-z0-9+/=\\n\\r]+$"))) return content
+
+    return runCatching {
+        val decoded = String(android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT), Charsets.UTF_8)
+        val printable = decoded.count { ch -> ch == '\n' || ch == '\r' || ch == '\t' || !ch.isISOControl() }
+        if (decoded.isNotBlank() && printable.toDouble() / decoded.length.toDouble() >= 0.85) decoded else content
+    }.getOrDefault(content)
+}
+
+private fun openUrlSafely(context: Context, url: String) {
+    val uri = Uri.parse(url)
+    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    runCatching {
+        context.startActivity(Intent.createChooser(intent, "Abrir com"))
+    }.onFailure {
+        Toast.makeText(context, "Nao foi possivel abrir o arquivo", Toast.LENGTH_SHORT).show()
     }
 }
 

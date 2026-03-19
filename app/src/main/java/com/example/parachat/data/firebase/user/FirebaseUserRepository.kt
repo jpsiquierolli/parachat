@@ -164,7 +164,11 @@ class FirebaseUserRepository(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.w(
+                    "FirebaseUserRepo",
+                    "observeUser cancelled for $userId: ${error.code} ${error.message}"
+                )
+                trySend(null)
             }
         }
         usersRef.child(userId).addValueEventListener(listener)
@@ -180,7 +184,11 @@ class FirebaseUserRepository(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.w(
+                    "FirebaseUserRepo",
+                    "observeContactIds cancelled for $ownerId: ${error.code} ${error.message}"
+                )
+                trySend(emptySet())
             }
         }
         ownerContactsRef.addValueEventListener(listener)

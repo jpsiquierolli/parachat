@@ -22,7 +22,11 @@ class FirebaseContactRepository(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.w(
+                    "FirebaseContactRepo",
+                    "observeContacts cancelled for $userId: ${error.code} ${error.message}"
+                )
+                trySend(emptyList())
             }
         }
         contactsRef.child(userId).addValueEventListener(listener)

@@ -62,7 +62,11 @@ class FirebaseGroupRepository(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.w(
+                    "FirebaseGroupRepo",
+                    "observeGroups cancelled for $userId: ${error.code} ${error.message}"
+                )
+                trySend(emptyList())
             }
         }
         groupsRef.addValueEventListener(listener)
@@ -76,7 +80,11 @@ class FirebaseGroupRepository(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.w(
+                    "FirebaseGroupRepo",
+                    "observeGroup cancelled for $groupId: ${error.code} ${error.message}"
+                )
+                trySend(null)
             }
         }
         groupsRef.child(groupId).addValueEventListener(listener)

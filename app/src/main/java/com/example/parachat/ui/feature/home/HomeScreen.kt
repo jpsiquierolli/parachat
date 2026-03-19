@@ -52,9 +52,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.example.parachat.security.MessageEncryption
 import com.example.parachat.domain.User
 import com.example.parachat.domain.displayName
 import com.example.parachat.domain.chat.Conversation
+import com.example.parachat.domain.chat.MessageType
 import com.example.parachat.ui.theme.ParachatTheme
 
 @Composable
@@ -259,6 +261,7 @@ fun HomeContent(
                                 ConversationItem(
                                     conversation = conversation,
                                     photoUrl = usersById[conversation.otherUserId]?.photoUrl,
+                                    currentUserId = currentUser?.id.orEmpty(),
                                     onClick = {
                                         onUserClick(
                                             conversation.otherUserId,
@@ -287,7 +290,12 @@ fun HomeContent(
 }
 
 @Composable
-fun ConversationItem(conversation: Conversation, photoUrl: String?, onClick: () -> Unit) {
+fun ConversationItem(
+    conversation: Conversation,
+    photoUrl: String?,
+    currentUserId: String,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -335,7 +343,7 @@ fun ConversationItem(conversation: Conversation, photoUrl: String?, onClick: () 
         Column(modifier = Modifier.weight(1f)) {
             Text(text = conversation.title, style = MaterialTheme.typography.titleMedium)
             Text(
-                text = conversation.lastMessagePreview,
+                text = decryptConversationPreview(conversation, currentUserId),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -357,6 +365,27 @@ fun ConversationItem(conversation: Conversation, photoUrl: String?, onClick: () 
             }
         }
     }
+}
+
+private fun decryptConversationPreview(conversation: Conversation, currentUserId: String): String {
+    val preview = conversation.lastMessagePreview
+    if (preview.startsWith("[") && preview.endsWith("]")) return preview
+    if (preview.isBlank() || conversation.isGroup || currentUserId.isBlank()) return preview
+
+    val normalized = normalizeLegacyPreview(preview)
+    val key = MessageEncryption.deriveConversationKey(currentUserId, conversation.otherUserId)
+    return runCatching { MessageEncryption.decrypt(normalized, key) }.getOrDefault(normalized)
+}
+
+private fun normalizeLegacyPreview(preview: String): String {
+    val trimmed = preview.trim()
+    if (trimmed.length % 4 != 0) return preview
+    if (!trimmed.matches(Regex("^[A-Za-z0-9+/=\\n\\r]+$"))) return preview
+
+    return runCatching {
+        val decoded = String(android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT), Charsets.UTF_8)
+        if (decoded.isNotBlank()) decoded else preview
+    }.getOrDefault(preview)
 }
 
 

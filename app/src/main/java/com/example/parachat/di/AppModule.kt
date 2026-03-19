@@ -61,9 +61,10 @@ object AppModule {
     @Singleton
     fun provideMessageRepository(
         database: FirebaseDatabase,
-        localDb: ParachatDatabase
+        localDb: ParachatDatabase,
+        @ApplicationContext context: Context
     ): MessageRepository {
-        return FirebaseMessageRepository(database, localDb)
+        return FirebaseMessageRepository(database, localDb, context)
     }
 
     @Provides

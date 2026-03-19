@@ -16,6 +16,7 @@ import com.example.parachat.domain.displayNameFromParts
 import com.example.parachat.domain.chat.Conversation
 import com.example.parachat.domain.chat.MessageRepository
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withTimeout
 
 @HiltViewModel
@@ -46,6 +47,7 @@ class HomeViewModel @Inject constructor(
 
     private var allUsersCache = emptyList<User>()
     private var rawConversationsCache = emptyList<Conversation>()
+    private var observersJob: Job? = null
 
     init {
         fetchData()
@@ -61,11 +63,12 @@ class HomeViewModel @Inject constructor(
 
     private fun fetchData() {
         val currentUserId = authRepository.getCurrentUser()?.uid ?: return
+        observersJob?.cancel()
         
         // Initial loading state
         _isLoading.value = true
 
-        viewModelScope.launch {
+        observersJob = viewModelScope.launch {
             // Observe conversations
             launch {
                 messageRepository.observeConversations(currentUserId)
@@ -84,7 +87,12 @@ class HomeViewModel @Inject constructor(
 
             // Observe current user
             launch {
-                userRepository.observeUser(currentUserId).collect { user ->
+                userRepository.observeUser(currentUserId)
+                    .catch { e ->
+                        android.util.Log.e("HomeViewModel", "Error observing current user", e)
+                        _currentUser.value = null
+                    }
+                    .collect { user ->
                     if (user == null) {
                         try {
                             val firebaseUser = authRepository.getCurrentUser()
@@ -105,26 +113,38 @@ class HomeViewModel @Inject constructor(
                     } else {
                         _currentUser.value = user
                     }
-                }
+                    }
             }
 
             // Fetch users for search
             launch {
-                userRepository.getAll().collect { allUsers ->
+                userRepository.getAll()
+                    .catch { e ->
+                        android.util.Log.e("HomeViewModel", "Error loading users", e)
+                        allUsersCache = emptyList()
+                        updateContactsList()
+                    }
+                    .collect { allUsers ->
                     allUsersCache = allUsers.filter { it.id != currentUserId }
                     android.util.Log.d("HomeViewModel", "Fetched all users: ${allUsers.size}, filtered: ${allUsersCache.size}")
                     _isLoading.value = false
                     updateConversationTitles()
                     updateContactsList()
-                }
+                    }
             }
 
             // Observe contacts
             launch {
-                userRepository.observeContactIds(currentUserId).collect { ids ->
+                userRepository.observeContactIds(currentUserId)
+                    .catch { e ->
+                        android.util.Log.e("HomeViewModel", "Error observing contacts", e)
+                        _contactIds.value = emptySet()
+                        updateContactsList()
+                    }
+                    .collect { ids ->
                     _contactIds.value = ids
                     updateContactsList()
-                }
+                    }
             }
         }
     }
@@ -210,6 +230,15 @@ class HomeViewModel @Inject constructor(
     }
 
     fun signOut(onComplete: () -> Unit) {
+        observersJob?.cancel()
+        observersJob = null
+        _users.value = emptyList()
+        _contactIds.value = emptySet()
+        _conversations.value = emptyList()
+        _currentUser.value = null
+        allUsersCache = emptyList()
+        rawConversationsCache = emptyList()
+
         val currentUserId = authRepository.getCurrentUser()?.uid
         if (currentUserId != null) {
             viewModelScope.launch {

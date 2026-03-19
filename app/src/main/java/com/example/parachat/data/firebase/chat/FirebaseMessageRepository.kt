@@ -1,5 +1,14 @@
 package com.example.parachat.data.firebase.chat
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import com.example.parachat.MainActivity
+import com.example.parachat.security.MessageEncryption
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -23,7 +32,8 @@ import kotlinx.coroutines.launch
 
 class FirebaseMessageRepository(
     private val database: FirebaseDatabase,
-    private val localDb: ParachatDatabase
+    private val localDb: ParachatDatabase,
+    private val context: Context
 ) : MessageRepository {
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
@@ -33,20 +43,16 @@ class FirebaseMessageRepository(
     private val usersRef = database.getReference("users")
     private val groupsRef = database.getReference("groups")
     private val messageDao = localDb.messageDao
+    private val unreadBaselineByConversation = mutableMapOf<String, Int>()
 
     override suspend fun sendMessage(message: Message, isGroup: Boolean) {
         val conversationId = conversationId(message.senderId, message.receiverId, isGroup)
         val newMessageRef = messagesRef.child(conversationId).push()
         val messageId = newMessageRef.key ?: return
         
-        // Basic Encryption for Requirement 11
-        val encryptedContent = if (message.type == MessageType.TEXT) {
-            android.util.Base64.encodeToString(message.content.toByteArray(), android.util.Base64.DEFAULT)
-        } else message.content
-        
         val payload = message.copy(
             id = messageId,
-            content = encryptedContent,
+            content = normalizeTextPayload(message.content, message.type),
             conversationId = conversationId
         )
         newMessageRef.setValue(payload).await()
@@ -81,14 +87,7 @@ class FirebaseMessageRepository(
             override fun onDataChange(snapshot: DataSnapshot) {
                 val messages = snapshot.children.mapNotNull { 
                     val msg = it.getValue(Message::class.java) ?: return@mapNotNull null
-                    if (msg.type == MessageType.TEXT) {
-                        try {
-                            val decoded = String(android.util.Base64.decode(msg.content, android.util.Base64.DEFAULT))
-                            msg.copy(content = decoded)
-                        } catch (e: Exception) {
-                            msg
-                        }
-                    } else msg
+                    msg.copy(content = normalizeTextPayload(msg.content, msg.type))
                 }.sortedForChat()
                 
                 // Cache to Room
@@ -157,6 +156,7 @@ class FirebaseMessageRepository(
             override fun onDataChange(snapshot: DataSnapshot) {
                 val conversations = snapshot.children.mapNotNull { it.getValue(Conversation::class.java) }
                     .sortedByDescending { it.lastMessageTimestamp }
+                maybeNotifyUnread(conversations)
                 trySend(conversations)
             }
 
@@ -191,11 +191,21 @@ class FirebaseMessageRepository(
         val conversationId = conversationId(currentUserId, otherUserId, isGroup)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                trySend(snapshot.getValue(Message::class.java))
+                val message = snapshot.getValue(Message::class.java)?.copy(
+                    content = normalizeTextPayload(
+                        snapshot.child("content").getValue(String::class.java).orEmpty(),
+                        snapshot.child("type").getValue(MessageType::class.java) ?: MessageType.TEXT
+                    )
+                )
+                trySend(message)
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.w(
+                    "FirebaseMessageRepo",
+                    "observePinnedMessage cancelled for $conversationId: ${error.code} ${error.message}"
+                )
+                trySend(null)
             }
         }
         pinnedRef.child(conversationId).addValueEventListener(listener)
@@ -285,12 +295,103 @@ class FirebaseMessageRepository(
     }
 
     private fun previewFor(message: Message): String = when (message.type) {
-        MessageType.TEXT -> message.content
+        MessageType.TEXT -> decryptForPreview(message)
         MessageType.IMAGE -> "[Image]"
         MessageType.VIDEO -> "[Video]"
         MessageType.AUDIO -> "[Audio]"
         MessageType.LOCATION -> "[Location]"
         MessageType.FILE -> message.content.ifBlank { "[File]" }
+    }
+
+    private fun decryptForPreview(message: Message): String {
+        val normalized = normalizeTextPayload(message.content, message.type)
+        if (message.type != MessageType.TEXT || normalized.isBlank()) return normalized
+
+        return try {
+            val key = MessageEncryption.deriveConversationKey(message.senderId, message.receiverId)
+            MessageEncryption.decrypt(normalized, key)
+        } catch (_: Exception) {
+            normalized
+        }
+    }
+
+    private fun normalizeTextPayload(content: String, type: MessageType): String {
+        if (type != MessageType.TEXT) return content
+        val trimmed = content.trim()
+        if (!looksLikeBase64(trimmed)) return content
+
+        return try {
+            val decoded = String(android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            if (decoded.isNotBlank() && decoded.isMostlyReadable()) decoded else content
+        } catch (_: Exception) {
+            content
+        }
+    }
+
+    private fun looksLikeBase64(value: String): Boolean {
+        if (value.isBlank()) return false
+        if (value.length % 4 != 0) return false
+        return value.matches(Regex("^[A-Za-z0-9+/=\\n\\r]+$"))
+    }
+
+    private fun String.isMostlyReadable(): Boolean {
+        if (isBlank()) return false
+        val printable = count { it == '\n' || it == '\r' || it == '\t' || !it.isISOControl() }
+        return printable.toDouble() / length.toDouble() >= 0.85
+    }
+
+    private fun maybeNotifyUnread(conversations: List<Conversation>) {
+        conversations.forEach { conversation ->
+            val previous = unreadBaselineByConversation[conversation.id]
+            if (previous == null) {
+                unreadBaselineByConversation[conversation.id] = conversation.unreadCount
+                return@forEach
+            }
+
+            if (conversation.unreadCount > previous) {
+                showUnreadNotification(conversation)
+            }
+
+            unreadBaselineByConversation[conversation.id] = conversation.unreadCount
+        }
+    }
+
+    private fun showUnreadNotification(conversation: Conversation) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "parachat_messages"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Parachat mensagens",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            manager.createNotificationChannel(channel)
+        }
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            conversation.id.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = if (conversation.isGroup) "Nova mensagem no grupo" else "Nova mensagem"
+        val body = conversation.lastMessagePreview.ifBlank { "Voce recebeu uma nova mensagem" }
+
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        manager.notify(conversation.id.hashCode(), notification)
     }
 
     private fun conversationId(userA: String, userB: String, isGroup: Boolean = false): String {
