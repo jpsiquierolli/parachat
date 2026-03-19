@@ -30,6 +30,9 @@ class HomeViewModel @Inject constructor(
     private val _users = MutableStateFlow<List<User>>(emptyList())
     val users = _users.asStateFlow()
 
+    private val _allUsers = MutableStateFlow<List<User>>(emptyList())
+    val allUsers = _allUsers.asStateFlow()
+
     private val _contactIds = MutableStateFlow<Set<String>>(emptySet())
     val contactIds = _contactIds.asStateFlow()
 
@@ -126,6 +129,7 @@ class HomeViewModel @Inject constructor(
                     }
                     .collect { allUsers ->
                     allUsersCache = allUsers.filter { it.id != currentUserId }
+                    _allUsers.value = allUsersCache
                     android.util.Log.d("HomeViewModel", "Fetched all users: ${allUsers.size}, filtered: ${allUsersCache.size}")
                     _isLoading.value = false
                     updateConversationTitles()
@@ -157,7 +161,8 @@ class HomeViewModel @Inject constructor(
     private fun updateContactsList() {
         val query = _searchQuery.value.trim()
         if (query.isBlank()) {
-            _users.value = allUsersCache.filter { user -> user.id in _contactIds.value }
+            // Contacts tab should list every registered user by default.
+            _users.value = allUsersCache
         } else {
             _users.value = allUsersCache.filter {
                 it.displayName().contains(query, ignoreCase = true) ||

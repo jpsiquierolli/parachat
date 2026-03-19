@@ -57,6 +57,7 @@ class FirebaseUserRepository(
                             id = id
                         )
                         val photoUrl = it.child("photoUrl").getValue(String::class.java)
+                            ?: it.child("photo_url").getValue(String::class.java)
                         val status = it.child("status").getValue(String::class.java) ?: UserStatus.OFFLINE.name
                         val about = it.child("about").getValue(String::class.java) ?: ""
                         val lastSeen = it.child("lastSeen").getValue(Long::class.java) ?: 0L
@@ -133,7 +134,8 @@ class FirebaseUserRepository(
                     id = id,
                     email = email,
                     username = resolvedUsername,
-                    photoUrl = snapshot.child("photoUrl").getValue(String::class.java),
+                    photoUrl = snapshot.child("photoUrl").getValue(String::class.java)
+                        ?: snapshot.child("photo_url").getValue(String::class.java),
                     status = snapshot.child("status").getValue(String::class.java) ?: UserStatus.OFFLINE.name,
                     about = snapshot.child("about").getValue(String::class.java) ?: "",
                     lastSeen = snapshot.child("lastSeen").getValue(Long::class.java) ?: 0L

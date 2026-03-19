@@ -679,7 +679,15 @@ private fun decryptMessageText(
     val normalized = normalizeLegacyTextPayload(message.content)
 
     val candidateKeys = buildList {
-        add(MessageEncryption.deriveConversationKey(currentUserId, chatId))
+        if (currentUserId.isNotBlank() && chatId.isNotBlank()) {
+            add(MessageEncryption.deriveConversationKey(currentUserId, chatId))
+        }
+
+        // Always try the ids stored in the message itself (most reliable fallback).
+        if (message.senderId.isNotBlank() && message.receiverId.isNotBlank()) {
+            add(MessageEncryption.deriveConversationKey(message.senderId, message.receiverId))
+        }
+
         if (isGroupChat && message.senderId.isNotBlank()) {
             add(MessageEncryption.deriveConversationKey(message.senderId, chatId))
         }
@@ -702,7 +710,9 @@ private fun normalizeLegacyTextPayload(content: String): String {
     return runCatching {
         val decoded = String(android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT), Charsets.UTF_8)
         val printable = decoded.count { ch -> ch == '\n' || ch == '\r' || ch == '\t' || !ch.isISOControl() }
-        if (decoded.isNotBlank() && printable.toDouble() / decoded.length.toDouble() >= 0.85) decoded else content
+        val readableRatio = if (decoded.isEmpty()) 0.0 else printable.toDouble() / decoded.length.toDouble()
+        val hasNaturalText = decoded.any { it.isLetterOrDigit() }
+        if (decoded.isNotBlank() && readableRatio >= 0.98 && hasNaturalText) decoded else content
     }.getOrDefault(content)
 }
 

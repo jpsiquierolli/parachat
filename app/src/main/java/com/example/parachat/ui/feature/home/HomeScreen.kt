@@ -71,6 +71,7 @@ fun HomeScreen(
 ) {
     val viewModel = hiltViewModel<HomeViewModel>()
     val users by viewModel.users.collectAsState()
+    val allUsers by viewModel.allUsers.collectAsState()
     val conversations by viewModel.conversations.collectAsState()
     val contactIds by viewModel.contactIds.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
@@ -89,6 +90,7 @@ fun HomeScreen(
 
     HomeContent(
         users = users,
+        allUsers = allUsers,
         conversations = conversations,
         contactIds = contactIds,
         currentUser = currentUser,
@@ -121,6 +123,7 @@ fun HomeScreen(
 @Composable
 fun HomeContent(
     users: List<User>,
+    allUsers: List<User>,
     conversations: List<Conversation>,
     contactIds: Set<String>,
     currentUser: User?,
@@ -136,7 +139,7 @@ fun HomeContent(
     onGroupsClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
-    var showUserSearch by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(HomeTab.CONVERSAS) }
     var pendingDeleteConversation by remember { mutableStateOf<Conversation?>(null) }
 
     Scaffold(
@@ -172,7 +175,7 @@ fun HomeContent(
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
-                if (!showUserSearch) {
+                if (selectedTab != HomeTab.CONTATOS) {
                     androidx.compose.material3.SmallFloatingActionButton(
                         onClick = onCreateGroupClick,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -180,8 +183,13 @@ fun HomeContent(
                         Icon(Icons.Default.Add, contentDescription = "Novo Grupo")
                     }
                 }
-                androidx.compose.material3.FloatingActionButton(onClick = { showUserSearch = !showUserSearch }) {
-                    Icon(if (showUserSearch) Icons.Default.Close else Icons.Default.Search, contentDescription = "Novo Chat")
+                androidx.compose.material3.FloatingActionButton(onClick = {
+                    selectedTab = if (selectedTab == HomeTab.CONTATOS) HomeTab.CONVERSAS else HomeTab.CONTATOS
+                }) {
+                    Icon(
+                        if (selectedTab == HomeTab.CONTATOS) Icons.Default.Close else Icons.Default.Search,
+                        contentDescription = "Novo Chat"
+                    )
                 }
             }
         }
@@ -214,24 +222,31 @@ fun HomeContent(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                // Determine active tab based on showing user search or not
-                
                 androidx.compose.material3.TextButton(
-                    onClick = { showUserSearch = false },
+                    onClick = { selectedTab = HomeTab.CONVERSAS },
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                        contentColor = if (!showUserSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        contentColor = if (selectedTab == HomeTab.CONVERSAS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
                     Text("Conversas")
                 }
                 
                 androidx.compose.material3.TextButton(
-                    onClick = { showUserSearch = true },
+                    onClick = { selectedTab = HomeTab.CONTATOS },
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                        contentColor = if (showUserSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        contentColor = if (selectedTab == HomeTab.CONTATOS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
                     Text("Contatos")
+                }
+
+                androidx.compose.material3.TextButton(
+                    onClick = { selectedTab = HomeTab.GRUPOS },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = if (selectedTab == HomeTab.GRUPOS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text("Grupos")
                 }
             }
 
@@ -240,55 +255,86 @@ fun HomeContent(
                     androidx.compose.material3.CircularProgressIndicator()
                 }
             } else {
-                val usersById = users.associateBy { it.id }
+                val usersById = allUsers.associateBy { it.id }
+                val directConversations = conversations.filter { !it.isGroup }
+                val groupConversations = conversations.filter { it.isGroup }
 
-                // Show Users List if: Explicitly requested OR Searching (ViewModel filters users) OR No conversations yet
-                if (showUserSearch || searchQuery.isNotBlank() || conversations.isEmpty()) {
-                    // Show Users List
-                    if (users.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(if (searchQuery.isNotBlank()) "Nenhum usuário encontrado." else "Nenhum contato encontrado.")
-                        }
-                    } else {
-                        LazyColumn(modifier = Modifier.weight(1f)) {
-                            items(users) { user ->
-                                UserItem(
-                                    user = user,
-                                    isContact = contactIds.contains(user.id),
-                                    onClick = {
-                                        onUserClick(user.id, false, user.displayName())
-                                        onSearchQueryChange("")
-                                        showUserSearch = false
-                                    },
-                                    onToggleContact = { onToggleContact(user.id, contactIds.contains(user.id)) }
-                                )
+                when (selectedTab) {
+                    HomeTab.CONTATOS -> {
+                        if (users.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(if (searchQuery.isNotBlank()) "Nenhum usuário encontrado." else "Nenhum contato encontrado.")
+                            }
+                        } else {
+                            LazyColumn(modifier = Modifier.weight(1f)) {
+                                items(users) { user ->
+                                    UserItem(
+                                        user = user,
+                                        isContact = contactIds.contains(user.id),
+                                        onClick = {
+                                            onUserClick(user.id, false, user.displayName())
+                                            onSearchQueryChange("")
+                                            selectedTab = HomeTab.CONVERSAS
+                                        },
+                                        onToggleContact = { onToggleContact(user.id, contactIds.contains(user.id)) }
+                                    )
+                                }
                             }
                         }
                     }
-                } else {
-                    // Show Conversations List
-                    if (conversations.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Nenhuma conversa iniciada.")
+
+                    HomeTab.CONVERSAS -> {
+                        if (directConversations.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Nenhuma conversa iniciada.")
+                            }
+                        } else {
+                            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                items(directConversations) { conversation ->
+                                    ConversationItem(
+                                        conversation = conversation,
+                                        photoUrl = usersById[conversation.otherUserId]?.photoUrl,
+                                        currentUserId = currentUser?.id.orEmpty(),
+                                        onClick = {
+                                            onUserClick(
+                                                conversation.otherUserId,
+                                                conversation.isGroup,
+                                                conversation.title
+                                            )
+                                        },
+                                        onLongPress = {
+                                            pendingDeleteConversation = conversation
+                                        }
+                                    )
+                                }
+                            }
                         }
-                    } else {
-                        LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            items(conversations) { conversation ->
-                                ConversationItem(
-                                    conversation = conversation,
-                                    photoUrl = usersById[conversation.otherUserId]?.photoUrl,
-                                    currentUserId = currentUser?.id.orEmpty(),
-                                    onClick = {
-                                        onUserClick(
-                                            conversation.otherUserId,
-                                            conversation.isGroup,
-                                            conversation.title
-                                        )
-                                    },
-                                    onLongPress = {
-                                        pendingDeleteConversation = conversation
-                                    }
-                                )
+                    }
+
+                    HomeTab.GRUPOS -> {
+                        if (groupConversations.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Nenhum grupo encontrado.")
+                            }
+                        } else {
+                            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                items(groupConversations) { conversation ->
+                                    ConversationItem(
+                                        conversation = conversation,
+                                        photoUrl = null,
+                                        currentUserId = currentUser?.id.orEmpty(),
+                                        onClick = {
+                                            onUserClick(
+                                                conversation.otherUserId,
+                                                true,
+                                                conversation.title
+                                            )
+                                        },
+                                        onLongPress = {
+                                            pendingDeleteConversation = conversation
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -529,6 +575,10 @@ fun HomeContentPreview() {
                 User(id = "1", username = "Alice", email = "alice@example.com"),
                 User(id = "2", username = "Bob", email = "bob@example.com")
             ),
+            allUsers = listOf(
+                User(id = "1", username = "Alice", email = "alice@example.com"),
+                User(id = "2", username = "Bob", email = "bob@example.com")
+            ),
             conversations = emptyList(),
             contactIds = emptySet(),
             currentUser = User(id = "3", username = "Me", email = "me@example.com"),
@@ -546,3 +596,10 @@ fun HomeContentPreview() {
         )
     }
 }
+
+private enum class HomeTab {
+    CONVERSAS,
+    CONTATOS,
+    GRUPOS
+}
+
