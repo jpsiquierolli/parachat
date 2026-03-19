@@ -15,6 +15,7 @@ import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageRepository
 import com.example.parachat.domain.chat.MessageStatus
 import com.example.parachat.domain.chat.MessageType
+import com.example.parachat.domain.chat.sortedForChat
 import com.example.parachat.domain.displayNameFromParts
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +54,12 @@ class FirebaseMessageRepository(
             senderId = message.senderId,
             receiverId = message.receiverId,
             content = message.content, 
+            mediaUrl = message.mediaUrl,
+            mediaThumbnailUrl = message.mediaThumbnailUrl,
+            mediaDurationMillis = message.mediaDurationMillis,
+            latitude = message.latitude,
+            longitude = message.longitude,
+            conversationId = conversationId,
             timestamp = message.timestamp,
             type = message.type.name,
             status = message.status.name
@@ -73,7 +80,7 @@ class FirebaseMessageRepository(
                             msg
                         }
                     } else msg
-                }.sortedBy { it.timestamp }
+                }.sortedForChat()
                 
                 // Cache to Room
                 repositoryScope.launch {
@@ -83,6 +90,12 @@ class FirebaseMessageRepository(
                             senderId = msg.senderId,
                             receiverId = msg.receiverId,
                             content = msg.content,
+                            mediaUrl = msg.mediaUrl,
+                            mediaThumbnailUrl = msg.mediaThumbnailUrl,
+                            mediaDurationMillis = msg.mediaDurationMillis,
+                            latitude = msg.latitude,
+                            longitude = msg.longitude,
+                            conversationId = msg.conversationId.ifBlank { conversationId },
                             timestamp = msg.timestamp,
                             type = msg.type.name,
                             status = msg.status.name
@@ -106,11 +119,17 @@ class FirebaseMessageRepository(
                                 senderId = it.senderId,
                                 receiverId = it.receiverId,
                                 content = it.content,
+                                mediaUrl = it.mediaUrl,
+                                mediaThumbnailUrl = it.mediaThumbnailUrl,
+                                mediaDurationMillis = it.mediaDurationMillis,
+                                latitude = it.latitude,
+                                longitude = it.longitude,
                                 timestamp = it.timestamp,
                                 type = MessageType.valueOf(it.type),
-                                status = MessageStatus.valueOf(it.status)
+                                status = MessageStatus.valueOf(it.status),
+                                conversationId = it.conversationId
                             )
-                        }
+                        }.sortedForChat()
                         trySend(messages)
                     }
                 }

@@ -134,13 +134,24 @@ class HomeViewModel @Inject constructor(
 
     private fun updateConversationTitles() {
         val usersById = allUsersCache.associateBy { it.id }
+        val usersByUsername = allUsersCache
+            .mapNotNull { user -> user.username?.trim()?.lowercase()?.takeIf { it.isNotBlank() }?.let { it to user } }
+            .toMap()
+
         _conversations.value = rawConversationsCache.map { conversation ->
-            val displayTitle = usersById[conversation.otherUserId]?.displayName()
+            val normalizedOtherKey = conversation.otherUserId.trim().lowercase()
+            val resolvedOtherUser = usersById[conversation.otherUserId] ?: usersByUsername[normalizedOtherKey]
+            val resolvedOtherId = resolvedOtherUser?.id ?: conversation.otherUserId
+
+            val displayTitle = resolvedOtherUser?.displayName()
                 ?: conversation.title
                     .takeIf { it.isNotBlank() && it != conversation.otherUserId }
-                ?: displayNameFromParts(username = null, email = "", id = conversation.otherUserId)
+                ?: displayNameFromParts(username = null, email = "", id = resolvedOtherId)
 
-            conversation.copy(title = displayTitle)
+            conversation.copy(
+                otherUserId = resolvedOtherId,
+                title = displayTitle
+            )
         }
     }
 

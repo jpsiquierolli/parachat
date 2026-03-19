@@ -39,7 +39,7 @@ public final class UserDao_Impl implements UserDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `users` (`id`,`email`,`username`) VALUES (?,?,?)";
+        return "INSERT OR REPLACE INTO `users` (`id`,`email`,`username`,`photoUrl`,`status`,`about`,`lastSeen`) VALUES (?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -48,6 +48,14 @@ public final class UserDao_Impl implements UserDao {
         statement.bindString(1, entity.getId());
         statement.bindString(2, entity.getEmail());
         statement.bindString(3, entity.getUsername());
+        if (entity.getPhotoUrl() == null) {
+          statement.bindNull(4);
+        } else {
+          statement.bindString(4, entity.getPhotoUrl());
+        }
+        statement.bindString(5, entity.getStatus());
+        statement.bindString(6, entity.getAbout());
+        statement.bindLong(7, entity.getLastSeen());
       }
     };
   }
@@ -86,6 +94,10 @@ public final class UserDao_Impl implements UserDao {
           final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
           final int _cursorIndexOfEmail = CursorUtil.getColumnIndexOrThrow(_cursor, "email");
           final int _cursorIndexOfUsername = CursorUtil.getColumnIndexOrThrow(_cursor, "username");
+          final int _cursorIndexOfPhotoUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "photoUrl");
+          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
+          final int _cursorIndexOfAbout = CursorUtil.getColumnIndexOrThrow(_cursor, "about");
+          final int _cursorIndexOfLastSeen = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeen");
           final UserEntity _result;
           if (_cursor.moveToFirst()) {
             final String _tmpId;
@@ -94,7 +106,19 @@ public final class UserDao_Impl implements UserDao {
             _tmpEmail = _cursor.getString(_cursorIndexOfEmail);
             final String _tmpUsername;
             _tmpUsername = _cursor.getString(_cursorIndexOfUsername);
-            _result = new UserEntity(_tmpId,_tmpEmail,_tmpUsername);
+            final String _tmpPhotoUrl;
+            if (_cursor.isNull(_cursorIndexOfPhotoUrl)) {
+              _tmpPhotoUrl = null;
+            } else {
+              _tmpPhotoUrl = _cursor.getString(_cursorIndexOfPhotoUrl);
+            }
+            final String _tmpStatus;
+            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
+            final String _tmpAbout;
+            _tmpAbout = _cursor.getString(_cursorIndexOfAbout);
+            final long _tmpLastSeen;
+            _tmpLastSeen = _cursor.getLong(_cursorIndexOfLastSeen);
+            _result = new UserEntity(_tmpId,_tmpEmail,_tmpUsername,_tmpPhotoUrl,_tmpStatus,_tmpAbout,_tmpLastSeen);
           } else {
             _result = null;
           }
@@ -120,6 +144,10 @@ public final class UserDao_Impl implements UserDao {
           final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
           final int _cursorIndexOfEmail = CursorUtil.getColumnIndexOrThrow(_cursor, "email");
           final int _cursorIndexOfUsername = CursorUtil.getColumnIndexOrThrow(_cursor, "username");
+          final int _cursorIndexOfPhotoUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "photoUrl");
+          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
+          final int _cursorIndexOfAbout = CursorUtil.getColumnIndexOrThrow(_cursor, "about");
+          final int _cursorIndexOfLastSeen = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeen");
           final List<UserEntity> _result = new ArrayList<UserEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final UserEntity _item;
@@ -129,7 +157,19 @@ public final class UserDao_Impl implements UserDao {
             _tmpEmail = _cursor.getString(_cursorIndexOfEmail);
             final String _tmpUsername;
             _tmpUsername = _cursor.getString(_cursorIndexOfUsername);
-            _item = new UserEntity(_tmpId,_tmpEmail,_tmpUsername);
+            final String _tmpPhotoUrl;
+            if (_cursor.isNull(_cursorIndexOfPhotoUrl)) {
+              _tmpPhotoUrl = null;
+            } else {
+              _tmpPhotoUrl = _cursor.getString(_cursorIndexOfPhotoUrl);
+            }
+            final String _tmpStatus;
+            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
+            final String _tmpAbout;
+            _tmpAbout = _cursor.getString(_cursorIndexOfAbout);
+            final long _tmpLastSeen;
+            _tmpLastSeen = _cursor.getLong(_cursorIndexOfLastSeen);
+            _item = new UserEntity(_tmpId,_tmpEmail,_tmpUsername,_tmpPhotoUrl,_tmpStatus,_tmpAbout,_tmpLastSeen);
             _result.add(_item);
           }
           return _result;

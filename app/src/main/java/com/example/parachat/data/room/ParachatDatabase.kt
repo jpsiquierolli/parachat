@@ -12,7 +12,7 @@ import com.example.parachat.data.room.chat.MessageEntity
 
 @Database(
     entities = [UserEntity::class, MessageEntity::class],
-    version = 5,
+    version = 7,
     exportSchema = false
 )
 abstract class ParachatDatabase : RoomDatabase() {

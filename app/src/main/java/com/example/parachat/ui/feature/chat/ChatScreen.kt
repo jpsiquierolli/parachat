@@ -25,7 +25,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
@@ -52,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -101,6 +106,13 @@ fun ChatScreen(
     var recorder: MediaRecorder? by remember { mutableStateOf(null) }
     var audioFile: File? by remember { mutableStateOf(null) }
     var showMediaOptions by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.lastIndex)
+        }
+    }
 
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -210,14 +222,43 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(text = otherUser?.displayName() ?: displayNameFromParts(username = null, email = "", id = userId))
-                        otherUser?.let {
-                            Text(
-                                text = it.status,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (it.status == "ONLINE") Color(0xFF4CAF50) else Color.Gray
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!otherUser?.photoUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = otherUser?.photoUrl,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
                             )
+                        } else {
+                            Card(
+                                modifier = Modifier.size(36.dp),
+                                shape = CircleShape,
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Column {
+                            Text(text = otherUser?.displayName() ?: displayNameFromParts(username = null, email = "", id = userId))
+                            otherUser?.let {
+                                Text(
+                                    text = it.status,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (it.status == "ONLINE") Color(0xFF4CAF50) else Color.Gray
+                                )
+                            }
                         }
                     }
                 },
@@ -279,9 +320,13 @@ fun ChatScreen(
 
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                reverseLayout = true
+                state = listState,
+                reverseLayout = false
             ) {
-                items(messages.reversed()) { message ->
+                items(
+                    items = messages,
+                    key = { message -> message.id.ifBlank { "${message.senderId}_${message.timestamp}_${message.content.hashCode()}" } }
+                ) { message ->
                     MessageBubble(
                         message = message,
                         isCurrentUser = message.senderId == currentUserId,

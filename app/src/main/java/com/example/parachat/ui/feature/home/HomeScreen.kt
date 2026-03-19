@@ -37,10 +37,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.example.parachat.domain.User
 import com.example.parachat.domain.displayName
 import com.example.parachat.domain.chat.Conversation
@@ -182,6 +185,8 @@ fun HomeContent(
                     androidx.compose.material3.CircularProgressIndicator()
                 }
             } else {
+                val usersById = users.associateBy { it.id }
+
                 // Show Users List if: Explicitly requested OR Searching (ViewModel filters users) OR No conversations yet
                 if (showUserSearch || searchQuery.isNotBlank() || conversations.isEmpty()) {
                     // Show Users List
@@ -209,7 +214,11 @@ fun HomeContent(
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
                             items(conversations) { conversation ->
-                                ConversationItem(conversation = conversation, onClick = { onUserClick(conversation.otherUserId) })
+                                ConversationItem(
+                                    conversation = conversation,
+                                    photoUrl = usersById[conversation.otherUserId]?.photoUrl,
+                                    onClick = { onUserClick(conversation.otherUserId) }
+                                )
                             }
                         }
                     }
@@ -230,7 +239,7 @@ fun HomeContent(
 }
 
 @Composable
-fun ConversationItem(conversation: Conversation, onClick: () -> Unit) {
+fun ConversationItem(conversation: Conversation, photoUrl: String?, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -238,13 +247,24 @@ fun ConversationItem(conversation: Conversation, onClick: () -> Unit) {
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            modifier = Modifier.size(56.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(28.dp))
+        if (!photoUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Surface(
+                modifier = Modifier.size(56.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(28.dp))
+                }
             }
         }
         Spacer(modifier = Modifier.size(16.dp))
@@ -285,17 +305,28 @@ fun UserItem(user: User, onClick: () -> Unit) {
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            modifier = Modifier.size(48.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
+        if (!user.photoUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = user.photoUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.size(16.dp))

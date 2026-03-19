@@ -9,6 +9,12 @@ data class MessageEntity(
     val senderId: String,
     val receiverId: String,
     val content: String,
+    val mediaUrl: String? = null,
+    val mediaThumbnailUrl: String? = null,
+    val mediaDurationMillis: Long? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val conversationId: String = "",
     val timestamp: Long,
     val type: String,
     val status: String

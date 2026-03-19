@@ -5,8 +5,12 @@ import com.example.parachat.domain.chat.Group
 import com.example.parachat.domain.chat.GroupRepository
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Order
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.isActive
+import kotlin.coroutines.coroutineContext
 import javax.inject.Inject
 
 class SupabaseGroupRepository @Inject constructor(
@@ -26,7 +30,7 @@ class SupabaseGroupRepository @Inject constructor(
         val groupId = if (group.id.isBlank()) java.util.UUID.randomUUID().toString() else group.id
         val payload = group.copy(id = groupId)
         if (!SupabaseSchemaGuard.isTableAvailable(groupsTable)) {
-            return groupId
+            throw IllegalStateException("Supabase table '$groupsTable' is missing")
         }
 
         try {
@@ -36,6 +40,7 @@ class SupabaseGroupRepository @Inject constructor(
             if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {
                 logTableMissingOnce()
             }
+            throw e
         }
         return groupId
     }
@@ -73,19 +78,26 @@ class SupabaseGroupRepository @Inject constructor(
             return@flow
         }
 
-        try {
-            val groups = supabase.postgrest[groupsTable].select {
-                filter {
-                    contains("members", listOf(userId))
+        while (coroutineContext.isActive) {
+            try {
+                val groups = supabase.postgrest[groupsTable].select {
+                    order("created_at", Order.DESCENDING)
+                }.decodeList<Group>()
+
+                val visibleGroups = groups
+                    .filter { it.creatorId == userId || it.members.contains(userId) }
+                    .sortedBy { it.name.lowercase() }
+
+                emit(visibleGroups)
+            } catch (e: Exception) {
+                android.util.Log.e("SupabaseGroupRepo", "Error loading groups", e)
+                if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {
+                    logTableMissingOnce()
                 }
-            }.decodeList<Group>()
-            emit(groups)
-        } catch (e: Exception) {
-            android.util.Log.e("SupabaseGroupRepo", "Error loading groups", e)
-            if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {
-                logTableMissingOnce()
+                emit(emptyList())
             }
-            emit(emptyList())
+
+            delay(GROUPS_REFRESH_INTERVAL_MS)
         }
     }
 
@@ -109,5 +121,9 @@ class SupabaseGroupRepository @Inject constructor(
             }
             null
         }
+    }
+
+    companion object {
+        private const val GROUPS_REFRESH_INTERVAL_MS = 2_000L
     }
 }

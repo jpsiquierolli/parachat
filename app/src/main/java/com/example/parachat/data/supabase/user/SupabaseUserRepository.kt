@@ -30,7 +30,17 @@ class SupabaseUserRepository @Inject constructor(
     }
 
     override suspend fun insert(user: User) {
-        userDao.insert(UserEntity(user.id, user.email, displayNameFromParts(user.username, user.email, user.id)))
+        userDao.insert(
+            UserEntity(
+                id = user.id,
+                email = user.email,
+                username = displayNameFromParts(user.username, user.email, user.id),
+                photoUrl = user.photoUrl,
+                status = user.status,
+                about = user.about,
+                lastSeen = user.lastSeen
+            )
+        )
 
         if (!SupabaseSchemaGuard.isTableAvailable(usersTable)) {
             return
@@ -52,7 +62,15 @@ class SupabaseUserRepository @Inject constructor(
             val cachedEntities = userDao.getAll().first()
             if (cachedEntities.isNotEmpty()) {
                 val cachedUsers = cachedEntities.map { 
-                    User(id = it.id, email = it.email, username = it.username) 
+                    User(
+                        id = it.id,
+                        email = it.email,
+                        username = it.username,
+                        photoUrl = it.photoUrl,
+                        status = it.status,
+                        about = it.about,
+                        lastSeen = it.lastSeen
+                    )
                 }
                 emit(cachedUsers)
             }
@@ -73,7 +91,17 @@ class SupabaseUserRepository @Inject constructor(
             // Update cache
             if (users.isNotEmpty()) {
                 users.forEach { 
-                    userDao.insert(UserEntity(it.id, it.email, displayNameFromParts(it.username, it.email, it.id)))
+                    userDao.insert(
+                        UserEntity(
+                            id = it.id,
+                            email = it.email,
+                            username = displayNameFromParts(it.username, it.email, it.id),
+                            photoUrl = it.photoUrl,
+                            status = it.status,
+                            about = it.about,
+                            lastSeen = it.lastSeen
+                        )
+                    )
                 }
             } else {
                  android.util.Log.d("SupabaseUserRepository", "Supabase returned empty user list")
@@ -89,7 +117,19 @@ class SupabaseUserRepository @Inject constructor(
     override fun observeUser(userId: String): Flow<User?> = flow {
         if (!SupabaseSchemaGuard.isTableAvailable(usersTable)) {
             val cached = userDao.getBy(userId)
-            emit(cached?.let { User(id = it.id, email = it.email, username = it.username) })
+            emit(
+                cached?.let {
+                    User(
+                        id = it.id,
+                        email = it.email,
+                        username = it.username,
+                        photoUrl = it.photoUrl,
+                        status = it.status,
+                        about = it.about,
+                        lastSeen = it.lastSeen
+                    )
+                }
+            )
             return@flow
         }
 
@@ -101,7 +141,17 @@ class SupabaseUserRepository @Inject constructor(
             
             // Should also persist partial update to Room
             if (user != null) {
-                userDao.insert(UserEntity(user.id, user.email, displayNameFromParts(user.username, user.email, user.id)))
+                userDao.insert(
+                    UserEntity(
+                        id = user.id,
+                        email = user.email,
+                        username = displayNameFromParts(user.username, user.email, user.id),
+                        photoUrl = user.photoUrl,
+                        status = user.status,
+                        about = user.about,
+                        lastSeen = user.lastSeen
+                    )
+                )
             }
         } catch (e: Exception) {
             android.util.Log.e("SupabaseUserRepository", "Error observing user", e)
@@ -111,7 +161,17 @@ class SupabaseUserRepository @Inject constructor(
             // Try to load from cache as fallback
             val cached = userDao.getBy(userId)
             if (cached != null) {
-                 emit(User(id = cached.id, email = cached.email, username = cached.username))
+                 emit(
+                     User(
+                         id = cached.id,
+                         email = cached.email,
+                         username = cached.username,
+                         photoUrl = cached.photoUrl,
+                         status = cached.status,
+                         about = cached.about,
+                         lastSeen = cached.lastSeen
+                     )
+                 )
             } else {
                  emit(null)
             }

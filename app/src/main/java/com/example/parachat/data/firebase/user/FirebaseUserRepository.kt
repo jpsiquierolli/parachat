@@ -34,7 +34,11 @@ class FirebaseUserRepository(
         userDao.insert(com.example.parachat.data.room.user.UserEntity(
             id = normalizedUser.id,
             email = normalizedUser.email,
-            username = normalizedUser.username.orEmpty()
+            username = normalizedUser.username.orEmpty(),
+            photoUrl = normalizedUser.photoUrl,
+            status = normalizedUser.status,
+            about = normalizedUser.about,
+            lastSeen = normalizedUser.lastSeen
         ))
     }
 
@@ -71,7 +75,11 @@ class FirebaseUserRepository(
                         userDao.insert(com.example.parachat.data.room.user.UserEntity(
                             id = user.id,
                             email = user.email,
-                            username = user.username.orEmpty()
+                            username = user.username.orEmpty(),
+                            photoUrl = user.photoUrl,
+                            status = user.status,
+                            about = user.about,
+                            lastSeen = user.lastSeen
                         ))
                     }
                 }
@@ -84,7 +92,17 @@ class FirebaseUserRepository(
                 // On error/offline, try to load from Room
                 repositoryScope.launch {
                     userDao.getAll().collect { entities ->
-                        val users = entities.map { User(id = it.id, email = it.email, username = it.username) }
+                        val users = entities.map {
+                            User(
+                                id = it.id,
+                                email = it.email,
+                                username = it.username,
+                                photoUrl = it.photoUrl,
+                                status = it.status,
+                                about = it.about,
+                                lastSeen = it.lastSeen
+                            )
+                        }
                         trySend(users)
                     }
                 }
@@ -125,7 +143,11 @@ class FirebaseUserRepository(
                         com.example.parachat.data.room.user.UserEntity(
                             id = user.id,
                             email = user.email,
-                            username = user.username.orEmpty()
+                            username = user.username.orEmpty(),
+                            photoUrl = user.photoUrl,
+                            status = user.status,
+                            about = user.about,
+                            lastSeen = user.lastSeen
                         )
                     )
                 }

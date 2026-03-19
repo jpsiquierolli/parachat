@@ -13,6 +13,7 @@ import com.example.parachat.domain.UserRepository
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageRepository
 import com.example.parachat.domain.chat.MessageType
+import com.example.parachat.domain.chat.sortedForChat
 import com.example.parachat.navigation.ChatRoute
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
@@ -72,7 +73,7 @@ class ChatViewModel @Inject constructor(
             // Observe messages
             launch {
                 messageRepository.getMessages(currentUserId, chatUserId).collect {
-                    allMessagesCache = it.sortedBy { message -> message.timestamp }
+                    allMessagesCache = it.sortedForChat()
                     onSearchQueryChange(_searchQuery.value)
                 }
             }

@@ -7,13 +7,18 @@ import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageRepository
 import com.example.parachat.domain.chat.MessageStatus
 import com.example.parachat.domain.chat.MessageType
+import com.example.parachat.domain.chat.sortedForChat
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import javax.inject.Inject
 
 class SupabaseMessageRepository @Inject constructor(
@@ -61,58 +66,27 @@ class SupabaseMessageRepository @Inject constructor(
         
         // Cache to Room
         try {
-            messageDao.insert(com.example.parachat.data.room.chat.MessageEntity(
-                id = messageWithConvId.id,
-                senderId = messageWithConvId.senderId,
-                receiverId = messageWithConvId.receiverId,
-                content = messageWithConvId.content,
-                timestamp = messageWithConvId.timestamp,
-                type = messageWithConvId.type.name,
-                status = messageWithConvId.status.name
-            ))
+            messageDao.insert(messageWithConvId.toEntity())
         } catch (e: Exception) {
             android.util.Log.e("SupabaseMessageRepo", "Error saving message locally", e)
         }
     }
 
-    override fun getMessages(currentUserId: String, otherUserId: String): Flow<List<Message>> = flow {
-         if (!SupabaseSchemaGuard.isTableAvailable(messagesTable)) {
-             emitAllLocalMessages(currentUserId, otherUserId)
-             return@flow
-         }
+    override fun getMessages(currentUserId: String, otherUserId: String): Flow<List<Message>> = channelFlow {
+        if (SupabaseSchemaGuard.isTableAvailable(messagesTable)) {
+            launch {
+                // Prime cache immediately, then keep polling while chat is open.
+                syncMessagesFromRemote(currentUserId, otherUserId)
+                while (isActive) {
+                    delay(MESSAGE_SYNC_INTERVAL_MS)
+                    syncMessagesFromRemote(currentUserId, otherUserId)
+                }
+            }
+        }
 
-         try {
-             val conversationId = conversationId(currentUserId, otherUserId)
-             // Use conversation_id filter now
-             val messages = supabase.postgrest[messagesTable].select {
-                 filter {
-                     eq("conversation_id", conversationId)
-                 }
-                 order("timestamp", Order.ASCENDING)
-             }.decodeList<Message>()
-             val normalized = messages.sortedBy { it.timestamp }
-             normalized.forEach { msg ->
-                 messageDao.insert(
-                     com.example.parachat.data.room.chat.MessageEntity(
-                         id = msg.id,
-                         senderId = msg.senderId,
-                         receiverId = msg.receiverId,
-                         content = msg.content,
-                         timestamp = msg.timestamp,
-                         type = msg.type.name,
-                         status = msg.status.name
-                     )
-                 )
-             }
-
-             emit(normalized)
-         } catch (e: Exception) {
-             android.util.Log.e("SupabaseMessageRepo", "Error fetching messages", e)
-             if (SupabaseSchemaGuard.markMissingTableIfNeeded(messagesTable, e)) {
-                 logTableMissingOnce(messagesTable)
-             }
-             emitAllLocalMessages(currentUserId, otherUserId)
-         }
+        messageDao.getMessagesForChat(currentUserId, otherUserId)
+            .map { entities -> entities.map { it.toDomain() }.sortedForChat() }
+            .collect { send(it) }
     }
 
     override fun observeConversations(currentUserId: String): Flow<List<Conversation>> = flow {
@@ -303,22 +277,64 @@ class SupabaseMessageRepository @Inject constructor(
         }
     }
 
-    private suspend fun FlowCollector<List<Message>>.emitAllLocalMessages(
-        currentUserId: String,
-        otherUserId: String
-    ) {
-        val local = messageDao.getMessagesForChat(currentUserId, otherUserId).first()
-            .map {
-                Message(
-                    id = it.id,
-                    senderId = it.senderId,
-                    receiverId = it.receiverId,
-                    content = it.content,
-                    timestamp = it.timestamp,
-                    type = MessageType.valueOf(it.type),
-                    status = MessageStatus.valueOf(it.status)
-                )
+    private suspend fun syncMessagesFromRemote(currentUserId: String, otherUserId: String) {
+        if (!SupabaseSchemaGuard.isTableAvailable(messagesTable)) {
+            return
+        }
+
+        try {
+            val conversationId = conversationId(currentUserId, otherUserId)
+            val remoteMessages = supabase.postgrest[messagesTable].select {
+                filter {
+                    eq("conversation_id", conversationId)
+                }
+                order("timestamp", Order.ASCENDING)
+            }.decodeList<Message>()
+
+            if (remoteMessages.isNotEmpty()) {
+                messageDao.insertAll(remoteMessages.map { it.toEntity() })
             }
-        emit(local)
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseMessageRepo", "Error syncing messages", e)
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(messagesTable, e)) {
+                logTableMissingOnce(messagesTable)
+            }
+        }
+    }
+
+    private fun Message.toEntity() = com.example.parachat.data.room.chat.MessageEntity(
+        id = id,
+        senderId = senderId,
+        receiverId = receiverId,
+        content = content,
+        mediaUrl = mediaUrl,
+        mediaThumbnailUrl = mediaThumbnailUrl,
+        mediaDurationMillis = mediaDurationMillis,
+        latitude = latitude,
+        longitude = longitude,
+        conversationId = conversationId,
+        timestamp = timestamp,
+        type = type.name,
+        status = status.name
+    )
+
+    private fun com.example.parachat.data.room.chat.MessageEntity.toDomain() = Message(
+        id = id,
+        senderId = senderId,
+        receiverId = receiverId,
+        content = content,
+        mediaUrl = mediaUrl,
+        mediaThumbnailUrl = mediaThumbnailUrl,
+        mediaDurationMillis = mediaDurationMillis,
+        latitude = latitude,
+        longitude = longitude,
+        type = MessageType.valueOf(type),
+        status = MessageStatus.valueOf(status),
+        timestamp = timestamp,
+        conversationId = conversationId
+    )
+
+    companion object {
+        private const val MESSAGE_SYNC_INTERVAL_MS = 2_000L
     }
 }

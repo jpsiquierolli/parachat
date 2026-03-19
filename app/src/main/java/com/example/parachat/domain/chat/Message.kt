@@ -42,3 +42,11 @@ enum class MessageStatus {
     DELIVERED,
     READ
 }
+
+// Stable ordering: oldest first, then deterministic tie-breakers.
+val CHAT_MESSAGE_ORDER: Comparator<Message> = compareBy<Message> { it.timestamp }
+    .thenBy { it.id }
+    .thenBy { it.senderId }
+
+fun List<Message>.sortedForChat(): List<Message> = sortedWith(CHAT_MESSAGE_ORDER)
+

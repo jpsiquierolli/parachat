@@ -64,13 +64,21 @@ class CreateGroupViewModel @Inject constructor(
 
     fun createGroup() {
         val name = _groupName.value
-        val members = _selectedUsers.value.toList() + (authRepository.getCurrentUser()?.uid ?: "")
+        val currentUserId = authRepository.getCurrentUser()?.uid.orEmpty()
+        val members = (_selectedUsers.value + currentUserId)
+            .filter { it.isNotBlank() }
+            .distinct()
         
         if (name.isBlank()) {
             viewModelScope.launch { _uiEvent.send(UIEvent.ShowSnackBar("Nome do grupo não pode estar vazio")) }
             return
         }
         
+        if (currentUserId.isBlank()) {
+            viewModelScope.launch { _uiEvent.send(UIEvent.ShowSnackBar("Usuário não autenticado")) }
+            return
+        }
+
         if (members.size < 2) {
              viewModelScope.launch { _uiEvent.send(UIEvent.ShowSnackBar("Selecione pelo menos um membro")) }
              return
@@ -80,7 +88,7 @@ class CreateGroupViewModel @Inject constructor(
             try {
                 val group = Group(
                     name = name,
-                    creatorId = authRepository.getCurrentUser()?.uid ?: "",
+                    creatorId = currentUserId,
                     members = members
                 )
                 groupRepository.createGroup(group)
