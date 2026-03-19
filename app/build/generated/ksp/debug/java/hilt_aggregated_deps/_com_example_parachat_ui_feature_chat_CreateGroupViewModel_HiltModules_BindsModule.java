@@ -1,0 +1,15 @@
+package hilt_aggregated_deps;
+
+import dagger.hilt.processor.internal.aggregateddeps.AggregatedDeps;
+import javax.annotation.processing.Generated;
+
+/**
+ * This class should only be referenced by generated code! This class aggregates information across multiple compilations.
+ */
+@AggregatedDeps(
+    components = "dagger.hilt.android.components.ViewModelComponent",
+    modules = "com.example.parachat.ui.feature.chat.CreateGroupViewModel_HiltModules.BindsModule"
+)
+@Generated("dagger.hilt.processor.internal.aggregateddeps.AggregatedDepsGenerator")
+public class _com_example_parachat_ui_feature_chat_CreateGroupViewModel_HiltModules_BindsModule {
+}
