@@ -2,6 +2,7 @@ package com.example.parachat.data.supabase.storage
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.storage.storage
+import io.github.jan.supabase.storage.upload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -18,8 +19,11 @@ class MediaStorageRepository(
         extension: String,
         mimeType: String
     ): String = withContext(Dispatchers.IO) {
-        val objectPath = "${ownerId}/${UUID.randomUUID()}.$extension"
-        bucket.upload(objectPath, bytes)
+        val objectPath = "$ownerId/${UUID.randomUUID()}.$extension"
+        bucket.upload(objectPath, bytes) {
+            upsert = true
+            contentType = io.ktor.http.ContentType.parse(mimeType)
+        }
         bucket.publicUrl(objectPath)
     }
 }

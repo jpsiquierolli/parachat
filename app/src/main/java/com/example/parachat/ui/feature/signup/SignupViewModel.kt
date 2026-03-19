@@ -64,7 +64,7 @@ class SignupViewModel : ViewModel() {
 
     private fun navigateToLogin() {
         viewModelScope.launch {
-            _uiEvent.send(UIEvent.Navigate(LoginRoute))
+            _uiEvent.send(UIEvent.Navigate(LoginRoute()))
         }
     }
 

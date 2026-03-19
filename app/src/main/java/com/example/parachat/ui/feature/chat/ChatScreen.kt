@@ -151,14 +151,15 @@ fun ChatScreen(
     }
 
     fun launchCamera() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            return
+        }
         try {
             val file = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
             cameraImageUri = uri
             cameraLauncher.launch(uri)
-        } catch (e: SecurityException) {
-            // Permission was revoked (e.g. after reinstall) — request it again
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         } catch (e: Exception) {
             Toast.makeText(context, "Erro ao abrir câmera.", Toast.LENGTH_SHORT).show()
         }
@@ -524,32 +525,53 @@ fun MessageItem(
                                 .clip(RoundedCornerShape(8.dp))
                         )
                     } else if (message.type == MessageType.LOCATION && message.latitude != null && message.longitude != null) {
-                        val lat = message.latitude
-                        val lon = message.longitude
-                        val mapUrl = "https://staticmap.openstreetmap.de/staticmap.php?center=$lat,$lon&zoom=15&size=256x160&markers=$lat,$lon,red-pushpin"
+                        val lat: Double = message.latitude!!
+                        val lon: Double = message.longitude!!
+                        // Use OpenStreetMap tile as static map preview
+                        val zoom = 15
+                        val tileX = ((lon + 180.0) / 360.0 * (1 shl zoom)).toInt()
+                        val latRad = Math.toRadians(lat)
+                        val tileY = ((1.0 - Math.log(Math.tan(latRad) + 1.0 / Math.cos(latRad)) / Math.PI) / 2.0 * (1 shl zoom)).toInt()
+                        val mapUrl = "https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
                         Column(modifier = Modifier.padding(top = 4.dp)) {
-                            AsyncImage(
-                                model = mapUrl,
-                                contentDescription = "Mapa",
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(160.dp)
                                     .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable {
                                         val geoUri = Uri.parse("geo:$lat,$lon?q=$lat,$lon")
                                         val mapIntent = Intent(Intent.ACTION_VIEW, geoUri)
-                                        mapIntent.setPackage("com.google.android.apps.maps")
                                         try {
                                             context.startActivity(mapIntent)
                                         } catch (e: Exception) {
-                                            val browserUri = Uri.parse("https://www.google.com/maps?q=$lat,$lon")
+                                            val browserUri = Uri.parse("https://www.openstreetmap.org/?mlat=$lat&mlon=$lon&zoom=15")
                                             context.startActivity(Intent(Intent.ACTION_VIEW, browserUri))
                                         }
-                                    }
-                            )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AsyncImage(
+                                    model = mapUrl,
+                                    contentDescription = "Mapa",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                // Pin overlay
+                                Icon(
+                                    Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                                 Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (isCurrentUser) Color.White else Color.Unspecified)
-                                Text(" Toque para abrir no mapa", style = MaterialTheme.typography.labelSmall, color = if (isCurrentUser) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    " %.5f, %.5f — Toque para abrir".format(lat, lon),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isCurrentUser) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     } else if (message.type == MessageType.LOCATION) {

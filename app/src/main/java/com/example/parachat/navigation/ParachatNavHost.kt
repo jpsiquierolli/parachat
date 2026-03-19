@@ -14,7 +14,7 @@ import com.example.parachat.ui.feature.group.CreateGroupScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
-object LoginRoute
+data class LoginRoute(val fromSignOut: Boolean = false)
 
 @Serializable
 object SignupRoute
@@ -36,13 +36,15 @@ fun ParachatNavHost() {
     val navController = rememberNavController()
     NavHost(
         navController = navController,
-        startDestination = LoginRoute
+        startDestination = LoginRoute()
     ) {
-        composable<LoginRoute> {
-            LoginScreen (
+        composable<LoginRoute> { backStackEntry ->
+            val route: LoginRoute = backStackEntry.toRoute()
+            LoginScreen(
+                fromSignOut = route.fromSignOut,
                 navigateToListScreen = {
                     navController.navigate(HomeRoute) {
-                        popUpTo(LoginRoute) { inclusive = true }
+                        popUpTo(LoginRoute()) { inclusive = true }
                         launchSingleTop = true
                     }
                 },
@@ -61,7 +63,7 @@ fun ParachatNavHost() {
                     }
                 },
                 navigateToLoginScreen = {
-                    navController.navigate(LoginRoute)
+                    navController.navigate(LoginRoute())
                 }
             )
         }
@@ -87,8 +89,9 @@ fun ParachatNavHost() {
                     navController.navigate(CreateGroupRoute)
                 },
                 onSignOut = {
-                    navController.navigate(LoginRoute) {
-                        popUpTo(HomeRoute) { inclusive = true }
+                    navController.navigate(LoginRoute(fromSignOut = true)) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
             )

@@ -13,7 +13,6 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-// import kotlinx.coroutines.tasks.await
 
 class LoginViewModel : ViewModel() {
     private val authRepository = FirebaseAuthRepository(FirebaseAuth.getInstance())
@@ -27,18 +26,32 @@ class LoginViewModel : ViewModel() {
     var loading by mutableStateOf(false)
         private set
 
-
     private val _uiEvent = Channel<UIEvent>()
     val uiEvent = _uiEvent.receiveAsFlow()
+
+    // Set to true when navigating here from explicit sign-out, to skip auto-login
+    private var skipAutoLogin = false
 
     init {
         checkAuthStatus()
     }
 
-    fun checkAuthStatus () {
-        if (authRepository.getCurrentUser() != null) {
-            viewModelScope.launch {
-                _uiEvent.send(UIEvent.Navigate(HomeRoute))
+    fun markSignedOut() {
+        skipAutoLogin = true
+    }
+
+    fun checkAuthStatus() {
+        if (skipAutoLogin) return
+        val user = authRepository.getCurrentUser()
+        if (user != null) {
+            // Reload to ensure token is still valid
+            user.reload().addOnCompleteListener { task ->
+                if (task.isSuccessful && authRepository.getCurrentUser() != null) {
+                    viewModelScope.launch {
+                        _uiEvent.send(UIEvent.Navigate(HomeRoute))
+                    }
+                }
+                // If reload fails, user is not authenticated — stay on login screen
             }
         }
     }
@@ -87,7 +100,7 @@ class LoginViewModel : ViewModel() {
         }
     }
 
-    private fun login () {
+    private fun login() {
         loading = true
         viewModelScope.launch {
             try {
@@ -104,6 +117,7 @@ class LoginViewModel : ViewModel() {
                     return@launch
                 }
                 authRepository.signIn(email, password)
+                skipAutoLogin = false
                 _uiEvent.send(UIEvent.Navigate(HomeRoute))
             } catch (e: Exception) {
                 _uiEvent.send(UIEvent.ShowSnackBar(
@@ -115,3 +129,4 @@ class LoginViewModel : ViewModel() {
         }
     }
 }
+

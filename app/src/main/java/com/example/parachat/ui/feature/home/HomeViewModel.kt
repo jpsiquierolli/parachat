@@ -47,7 +47,11 @@ class HomeViewModel : ViewModel() {
 
     init {
         fetchData()
-        updateUserStatus(UserStatus.ONLINE)
+        if (currentUserId.isNotBlank()) {
+            viewModelScope.launch {
+                try { userRepository.updateStatus(currentUserId, UserStatus.ONLINE) } catch (_: Exception) {}
+            }
+        }
     }
 
     fun onSearchQueryChange(query: String) {
@@ -102,7 +106,12 @@ class HomeViewModel : ViewModel() {
     fun addContactByUsername(username: String) {
         viewModelScope.launch {
             try {
-                val user = userRepository.getUserByUsername(username)
+                val trimmed = username.trim()
+                if (trimmed.isBlank()) {
+                    _error.value = "Digite um nome de usuário."
+                    return@launch
+                }
+                val user = userRepository.getUserByUsername(trimmed)
                 if (user != null) {
                     if (user.id == currentUserId) {
                         _error.value = "Você não pode adicionar a si mesmo."
@@ -110,7 +119,7 @@ class HomeViewModel : ViewModel() {
                         contactRepository.addContact(currentUserId, user.id)
                     }
                 } else {
-                    _error.value = "Usuário não encontrado."
+                    _error.value = "Usuário '$trimmed' não encontrado."
                 }
             } catch (e: Exception) {
                 _error.value = "Erro ao adicionar contato: ${e.message}"
@@ -164,27 +173,30 @@ class HomeViewModel : ViewModel() {
         _error.value = null
     }
 
-    private fun updateUserStatus(status: UserStatus) {
-        if (currentUserId.isNotBlank()) {
-            viewModelScope.launch {
-                userRepository.updateStatus(currentUserId, status)
-            }
-        }
-    }
-
     fun removeContact(contactId: String) {
         viewModelScope.launch {
             contactRepository.removeContact(currentUserId, contactId)
         }
     }
 
-    fun signOut() {
-        updateUserStatus(UserStatus.OFFLINE)
-        authRepository.signOut()
+    fun signOut(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                if (currentUserId.isNotBlank()) {
+                    userRepository.updateStatus(currentUserId, UserStatus.OFFLINE)
+                }
+            } catch (_: Exception) {}
+            authRepository.signOut()
+            onComplete()
+        }
     }
 
     override fun onCleared() {
         super.onCleared()
-        updateUserStatus(UserStatus.OFFLINE)
+        if (currentUserId.isNotBlank()) {
+            viewModelScope.launch {
+                try { userRepository.updateStatus(currentUserId, UserStatus.OFFLINE) } catch (_: Exception) {}
+            }
+        }
     }
 }

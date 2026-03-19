@@ -24,7 +24,6 @@ import com.example.parachat.ui.UIEvent
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -33,12 +32,19 @@ import com.example.parachat.ui.theme.ParachatTheme
 
 @Composable
 fun LoginScreen(
+    fromSignOut: Boolean = false,
     navigateToListScreen: () -> Unit,
     navigateToSignupScreen: () -> Unit
 ) {
-    val context = LocalContext.current
 
     val viewModel = viewModel<LoginViewModel>()
+
+    // If coming from sign-out, mark it so we don't auto-navigate back to Home
+    LaunchedEffect(fromSignOut) {
+        if (fromSignOut) {
+            viewModel.markSignedOut()
+        }
+    }
 
     val email = viewModel.email
     val password = viewModel.password

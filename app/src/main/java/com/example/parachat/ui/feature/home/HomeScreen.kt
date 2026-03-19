@@ -97,8 +97,9 @@ fun HomeScreen(
                             Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
                         }
                         IconButton(onClick = {
-                            viewModel.signOut()
-                            onSignOut()
+                            viewModel.signOut {
+                                onSignOut()
+                            }
                         }) {
                             Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sair")
                         }
