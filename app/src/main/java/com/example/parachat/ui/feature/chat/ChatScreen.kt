@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
@@ -547,10 +548,10 @@ fun MessageItem(
                             Text(" Localização", style = MaterialTheme.typography.bodySmall, color = if (isCurrentUser) Color.White else Color.Unspecified)
                         }
                     } else if (message.type == MessageType.AUDIO) {
-                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                             Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp), tint = if (isCurrentUser) Color.White else Color.Unspecified)
-                             Text(" Áudio", style = MaterialTheme.typography.bodySmall, color = if (isCurrentUser) Color.White else Color.Unspecified)
-                         }
+                        AudioPlayerItem(
+                            url = message.mediaUrl,
+                            isCurrentUser = isCurrentUser
+                        )
                     }
 
                     Row(
@@ -614,6 +615,114 @@ fun MediaOption(icon: androidx.compose.ui.graphics.vector.ImageVector, label: St
     ) {
         Icon(icon, contentDescription = label)
         Text(text = label, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+fun AudioPlayerItem(url: String?, isCurrentUser: Boolean) {
+    if (url == null) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+            Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp),
+                tint = if (isCurrentUser) Color.White else Color.Unspecified)
+            Text(" Áudio indisponível", style = MaterialTheme.typography.bodySmall,
+                color = if (isCurrentUser) Color.White else Color.Unspecified)
+        }
+        return
+    }
+
+    var isPlaying by remember { mutableStateOf(false) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    var durationMs by remember { mutableIntStateOf(0) }
+    val mediaPlayer = remember { mutableStateOf<MediaPlayer?>(null) }
+
+    // Cleanup when composable leaves composition
+    DisposableEffect(url) {
+        onDispose {
+            mediaPlayer.value?.release()
+            mediaPlayer.value = null
+        }
+    }
+
+    // Update progress while playing
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            while (isPlaying) {
+                val mp = mediaPlayer.value
+                if (mp != null && mp.isPlaying) {
+                    progress = mp.currentPosition.toFloat() / mp.duration.toFloat()
+                }
+                kotlinx.coroutines.delay(200)
+            }
+        }
+    }
+
+    fun togglePlayback() {
+        val mp = mediaPlayer.value
+        if (mp == null) {
+            // First play — create and prepare asynchronously
+            val newMp = MediaPlayer()
+            newMp.setDataSource(url)
+            newMp.setOnPreparedListener { prepared ->
+                durationMs = prepared.duration
+                prepared.start()
+                isPlaying = true
+            }
+            newMp.setOnCompletionListener {
+                isPlaying = false
+                progress = 0f
+            }
+            newMp.prepareAsync()
+            mediaPlayer.value = newMp
+        } else if (mp.isPlaying) {
+            mp.pause()
+            isPlaying = false
+        } else {
+            mp.start()
+            isPlaying = true
+        }
+    }
+
+    val contentColor = if (isCurrentUser) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+    val totalSecs = durationMs / 1000
+    val currentSecs = (progress * totalSecs).toInt()
+    val timeLabel = "%d:%02d / %d:%02d".format(currentSecs / 60, currentSecs % 60, totalSecs / 60, totalSecs % 60)
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(top = 4.dp)
+            .widthIn(min = 180.dp, max = 260.dp)
+    ) {
+        IconButton(onClick = { togglePlayback() }, modifier = Modifier.size(36.dp)) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
+                tint = contentColor,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Slider(
+                value = progress,
+                onValueChange = { newVal ->
+                    progress = newVal
+                    mediaPlayer.value?.seekTo((newVal * (mediaPlayer.value?.duration ?: 0)).toInt())
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp),
+                colors = SliderDefaults.colors(
+                    thumbColor = contentColor,
+                    activeTrackColor = contentColor,
+                    inactiveTrackColor = contentColor.copy(alpha = 0.3f)
+                )
+            )
+            Text(
+                text = timeLabel,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                color = contentColor.copy(alpha = 0.8f)
+            )
+        }
     }
 }
 
