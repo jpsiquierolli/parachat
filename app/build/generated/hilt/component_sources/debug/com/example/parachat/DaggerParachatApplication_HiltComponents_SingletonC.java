@@ -10,10 +10,10 @@ import com.example.parachat.auth.FirebaseAuthRepository;
 import com.example.parachat.data.room.ParachatDatabase;
 import com.example.parachat.di.AppModule_ProvideAuthRepositoryFactory;
 import com.example.parachat.di.AppModule_ProvideFirebaseAuthFactory;
+import com.example.parachat.di.AppModule_ProvideFirebaseDatabaseFactory;
 import com.example.parachat.di.AppModule_ProvideGroupRepositoryFactory;
 import com.example.parachat.di.AppModule_ProvideMessageRepositoryFactory;
 import com.example.parachat.di.AppModule_ProvideParachatDatabaseFactory;
-import com.example.parachat.di.AppModule_ProvideSupabaseClientFactory;
 import com.example.parachat.di.AppModule_ProvideUserRepositoryFactory;
 import com.example.parachat.domain.UserRepository;
 import com.example.parachat.domain.chat.GroupRepository;
@@ -37,6 +37,7 @@ import com.example.parachat.ui.feature.signup.SignupViewModel_HiltModules;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.FirebaseDatabase;
 import dagger.hilt.android.ActivityRetainedLifecycle;
 import dagger.hilt.android.ViewModelLifecycle;
 import dagger.hilt.android.internal.builders.ActivityComponentBuilder;
@@ -59,7 +60,6 @@ import dagger.internal.KeepFieldType;
 import dagger.internal.LazyClassKeyMap;
 import dagger.internal.Preconditions;
 import dagger.internal.Provider;
-import io.github.jan.supabase.SupabaseClient;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.processing.Generated;
@@ -416,33 +416,33 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_example_parachat_ui_feature_profile_ProfileViewModel = "com.example.parachat.ui.feature.profile.ProfileViewModel";
-
       static String com_example_parachat_ui_feature_chat_ChatViewModel = "com.example.parachat.ui.feature.chat.ChatViewModel";
 
-      static String com_example_parachat_ui_feature_chat_CreateGroupViewModel = "com.example.parachat.ui.feature.chat.CreateGroupViewModel";
+      static String com_example_parachat_ui_feature_profile_ProfileViewModel = "com.example.parachat.ui.feature.profile.ProfileViewModel";
 
-      static String com_example_parachat_ui_feature_signup_SignupViewModel = "com.example.parachat.ui.feature.signup.SignupViewModel";
+      static String com_example_parachat_ui_feature_chat_GroupManagementViewModel = "com.example.parachat.ui.feature.chat.GroupManagementViewModel";
+
+      static String com_example_parachat_ui_feature_login_LoginViewModel = "com.example.parachat.ui.feature.login.LoginViewModel";
 
       static String com_example_parachat_ui_feature_home_HomeViewModel = "com.example.parachat.ui.feature.home.HomeViewModel";
 
       static String com_example_parachat_ui_feature_chat_GroupsViewModel = "com.example.parachat.ui.feature.chat.GroupsViewModel";
 
-      static String com_example_parachat_ui_feature_login_LoginViewModel = "com.example.parachat.ui.feature.login.LoginViewModel";
+      static String com_example_parachat_ui_feature_signup_SignupViewModel = "com.example.parachat.ui.feature.signup.SignupViewModel";
 
-      static String com_example_parachat_ui_feature_chat_GroupManagementViewModel = "com.example.parachat.ui.feature.chat.GroupManagementViewModel";
-
-      @KeepFieldType
-      ProfileViewModel com_example_parachat_ui_feature_profile_ProfileViewModel2;
+      static String com_example_parachat_ui_feature_chat_CreateGroupViewModel = "com.example.parachat.ui.feature.chat.CreateGroupViewModel";
 
       @KeepFieldType
       ChatViewModel com_example_parachat_ui_feature_chat_ChatViewModel2;
 
       @KeepFieldType
-      CreateGroupViewModel com_example_parachat_ui_feature_chat_CreateGroupViewModel2;
+      ProfileViewModel com_example_parachat_ui_feature_profile_ProfileViewModel2;
 
       @KeepFieldType
-      SignupViewModel com_example_parachat_ui_feature_signup_SignupViewModel2;
+      GroupManagementViewModel com_example_parachat_ui_feature_chat_GroupManagementViewModel2;
+
+      @KeepFieldType
+      LoginViewModel com_example_parachat_ui_feature_login_LoginViewModel2;
 
       @KeepFieldType
       HomeViewModel com_example_parachat_ui_feature_home_HomeViewModel2;
@@ -451,10 +451,10 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
       GroupsViewModel com_example_parachat_ui_feature_chat_GroupsViewModel2;
 
       @KeepFieldType
-      LoginViewModel com_example_parachat_ui_feature_login_LoginViewModel2;
+      SignupViewModel com_example_parachat_ui_feature_signup_SignupViewModel2;
 
       @KeepFieldType
-      GroupManagementViewModel com_example_parachat_ui_feature_chat_GroupManagementViewModel2;
+      CreateGroupViewModel com_example_parachat_ui_feature_chat_CreateGroupViewModel2;
     }
   }
 
@@ -518,7 +518,7 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_example_parachat_ui_feature_home_HomeViewModel = "com.example.parachat.ui.feature.home.HomeViewModel";
+      static String com_example_parachat_ui_feature_chat_ChatViewModel = "com.example.parachat.ui.feature.chat.ChatViewModel";
 
       static String com_example_parachat_ui_feature_login_LoginViewModel = "com.example.parachat.ui.feature.login.LoginViewModel";
 
@@ -526,16 +526,16 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
 
       static String com_example_parachat_ui_feature_chat_GroupsViewModel = "com.example.parachat.ui.feature.chat.GroupsViewModel";
 
-      static String com_example_parachat_ui_feature_profile_ProfileViewModel = "com.example.parachat.ui.feature.profile.ProfileViewModel";
-
-      static String com_example_parachat_ui_feature_signup_SignupViewModel = "com.example.parachat.ui.feature.signup.SignupViewModel";
+      static String com_example_parachat_ui_feature_home_HomeViewModel = "com.example.parachat.ui.feature.home.HomeViewModel";
 
       static String com_example_parachat_ui_feature_chat_CreateGroupViewModel = "com.example.parachat.ui.feature.chat.CreateGroupViewModel";
 
-      static String com_example_parachat_ui_feature_chat_ChatViewModel = "com.example.parachat.ui.feature.chat.ChatViewModel";
+      static String com_example_parachat_ui_feature_signup_SignupViewModel = "com.example.parachat.ui.feature.signup.SignupViewModel";
+
+      static String com_example_parachat_ui_feature_profile_ProfileViewModel = "com.example.parachat.ui.feature.profile.ProfileViewModel";
 
       @KeepFieldType
-      HomeViewModel com_example_parachat_ui_feature_home_HomeViewModel2;
+      ChatViewModel com_example_parachat_ui_feature_chat_ChatViewModel2;
 
       @KeepFieldType
       LoginViewModel com_example_parachat_ui_feature_login_LoginViewModel2;
@@ -547,16 +547,16 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
       GroupsViewModel com_example_parachat_ui_feature_chat_GroupsViewModel2;
 
       @KeepFieldType
-      ProfileViewModel com_example_parachat_ui_feature_profile_ProfileViewModel2;
-
-      @KeepFieldType
-      SignupViewModel com_example_parachat_ui_feature_signup_SignupViewModel2;
+      HomeViewModel com_example_parachat_ui_feature_home_HomeViewModel2;
 
       @KeepFieldType
       CreateGroupViewModel com_example_parachat_ui_feature_chat_CreateGroupViewModel2;
 
       @KeepFieldType
-      ChatViewModel com_example_parachat_ui_feature_chat_ChatViewModel2;
+      SignupViewModel com_example_parachat_ui_feature_signup_SignupViewModel2;
+
+      @KeepFieldType
+      ProfileViewModel com_example_parachat_ui_feature_profile_ProfileViewModel2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {
@@ -593,7 +593,7 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
           return (T) new GroupsViewModel(singletonCImpl.provideAuthRepositoryProvider.get(), singletonCImpl.provideGroupRepositoryProvider.get());
 
           case 4: // com.example.parachat.ui.feature.home.HomeViewModel 
-          return (T) new HomeViewModel(singletonCImpl.provideAuthRepositoryProvider.get(), singletonCImpl.provideUserRepositoryProvider.get(), singletonCImpl.provideMessageRepositoryProvider.get());
+          return (T) new HomeViewModel(singletonCImpl.provideAuthRepositoryProvider.get(), singletonCImpl.provideUserRepositoryProvider.get(), singletonCImpl.provideMessageRepositoryProvider.get(), singletonCImpl.provideParachatDatabaseProvider.get());
 
           case 5: // com.example.parachat.ui.feature.login.LoginViewModel 
           return (T) new LoginViewModel(singletonCImpl.provideAuthRepositoryProvider.get());
@@ -688,7 +688,7 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
 
     private Provider<FirebaseAuthRepository> provideAuthRepositoryProvider;
 
-    private Provider<SupabaseClient> provideSupabaseClientProvider;
+    private Provider<FirebaseDatabase> provideFirebaseDatabaseProvider;
 
     private Provider<ParachatDatabase> provideParachatDatabaseProvider;
 
@@ -708,7 +708,7 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
     private void initialize(final ApplicationContextModule applicationContextModuleParam) {
       this.provideFirebaseAuthProvider = DoubleCheck.provider(new SwitchingProvider<FirebaseAuth>(singletonCImpl, 1));
       this.provideAuthRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<FirebaseAuthRepository>(singletonCImpl, 0));
-      this.provideSupabaseClientProvider = DoubleCheck.provider(new SwitchingProvider<SupabaseClient>(singletonCImpl, 3));
+      this.provideFirebaseDatabaseProvider = DoubleCheck.provider(new SwitchingProvider<FirebaseDatabase>(singletonCImpl, 3));
       this.provideParachatDatabaseProvider = DoubleCheck.provider(new SwitchingProvider<ParachatDatabase>(singletonCImpl, 4));
       this.provideMessageRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<MessageRepository>(singletonCImpl, 2));
       this.provideUserRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<UserRepository>(singletonCImpl, 5));
@@ -755,19 +755,19 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
           return (T) AppModule_ProvideFirebaseAuthFactory.provideFirebaseAuth();
 
           case 2: // com.example.parachat.domain.chat.MessageRepository 
-          return (T) AppModule_ProvideMessageRepositoryFactory.provideMessageRepository(singletonCImpl.provideSupabaseClientProvider.get(), singletonCImpl.provideParachatDatabaseProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+          return (T) AppModule_ProvideMessageRepositoryFactory.provideMessageRepository(singletonCImpl.provideFirebaseDatabaseProvider.get(), singletonCImpl.provideParachatDatabaseProvider.get());
 
-          case 3: // io.github.jan.supabase.SupabaseClient 
-          return (T) AppModule_ProvideSupabaseClientFactory.provideSupabaseClient();
+          case 3: // com.google.firebase.database.FirebaseDatabase 
+          return (T) AppModule_ProvideFirebaseDatabaseFactory.provideFirebaseDatabase();
 
           case 4: // com.example.parachat.data.room.ParachatDatabase 
           return (T) AppModule_ProvideParachatDatabaseFactory.provideParachatDatabase(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
           case 5: // com.example.parachat.domain.UserRepository 
-          return (T) AppModule_ProvideUserRepositoryFactory.provideUserRepository(singletonCImpl.provideSupabaseClientProvider.get(), singletonCImpl.provideParachatDatabaseProvider.get());
+          return (T) AppModule_ProvideUserRepositoryFactory.provideUserRepository(singletonCImpl.provideFirebaseDatabaseProvider.get(), singletonCImpl.provideParachatDatabaseProvider.get());
 
           case 6: // com.example.parachat.domain.chat.GroupRepository 
-          return (T) AppModule_ProvideGroupRepositoryFactory.provideGroupRepository(singletonCImpl.provideSupabaseClientProvider.get());
+          return (T) AppModule_ProvideGroupRepositoryFactory.provideGroupRepository(singletonCImpl.provideFirebaseDatabaseProvider.get());
 
           default: throw new AssertionError(id);
         }

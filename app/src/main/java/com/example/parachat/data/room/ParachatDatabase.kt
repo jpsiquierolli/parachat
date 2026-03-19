@@ -20,6 +20,11 @@ abstract class ParachatDatabase : RoomDatabase() {
     abstract val userDao: UserDao
     abstract val messageDao: MessageDao
 
+    suspend fun clearAllData() {
+        messageDao.deleteAll()
+        userDao.deleteAll()
+    }
+
     companion object {
         @Volatile
         private var INSTANCE: ParachatDatabase? = null

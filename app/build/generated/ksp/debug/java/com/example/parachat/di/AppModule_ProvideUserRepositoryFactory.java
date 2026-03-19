@@ -2,12 +2,12 @@ package com.example.parachat.di;
 
 import com.example.parachat.data.room.ParachatDatabase;
 import com.example.parachat.domain.UserRepository;
+import com.google.firebase.database.FirebaseDatabase;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.Preconditions;
 import dagger.internal.QualifierMetadata;
 import dagger.internal.ScopeMetadata;
-import io.github.jan.supabase.SupabaseClient;
 import javax.annotation.processing.Generated;
 import javax.inject.Provider;
 
@@ -26,28 +26,28 @@ import javax.inject.Provider;
     "cast"
 })
 public final class AppModule_ProvideUserRepositoryFactory implements Factory<UserRepository> {
-  private final Provider<SupabaseClient> supabaseClientProvider;
+  private final Provider<FirebaseDatabase> databaseProvider;
 
   private final Provider<ParachatDatabase> localDbProvider;
 
-  public AppModule_ProvideUserRepositoryFactory(Provider<SupabaseClient> supabaseClientProvider,
+  public AppModule_ProvideUserRepositoryFactory(Provider<FirebaseDatabase> databaseProvider,
       Provider<ParachatDatabase> localDbProvider) {
-    this.supabaseClientProvider = supabaseClientProvider;
+    this.databaseProvider = databaseProvider;
     this.localDbProvider = localDbProvider;
   }
 
   @Override
   public UserRepository get() {
-    return provideUserRepository(supabaseClientProvider.get(), localDbProvider.get());
+    return provideUserRepository(databaseProvider.get(), localDbProvider.get());
   }
 
   public static AppModule_ProvideUserRepositoryFactory create(
-      Provider<SupabaseClient> supabaseClientProvider, Provider<ParachatDatabase> localDbProvider) {
-    return new AppModule_ProvideUserRepositoryFactory(supabaseClientProvider, localDbProvider);
+      Provider<FirebaseDatabase> databaseProvider, Provider<ParachatDatabase> localDbProvider) {
+    return new AppModule_ProvideUserRepositoryFactory(databaseProvider, localDbProvider);
   }
 
-  public static UserRepository provideUserRepository(SupabaseClient supabaseClient,
+  public static UserRepository provideUserRepository(FirebaseDatabase database,
       ParachatDatabase localDb) {
-    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.provideUserRepository(supabaseClient, localDb));
+    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.provideUserRepository(database, localDb));
   }
 }

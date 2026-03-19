@@ -3,14 +3,15 @@ package com.example.parachat.di
 import android.content.Context
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.SupabaseProvider
+import com.example.parachat.data.firebase.chat.FirebaseGroupRepository
+import com.example.parachat.data.firebase.chat.FirebaseMessageRepository
+import com.example.parachat.data.firebase.user.FirebaseUserRepository
 import com.example.parachat.data.room.ParachatDatabase
-import com.example.parachat.data.supabase.chat.SupabaseGroupRepository
-import com.example.parachat.data.supabase.chat.SupabaseMessageRepository
-import com.example.parachat.data.supabase.user.SupabaseUserRepository
 import com.example.parachat.domain.UserRepository
 import com.example.parachat.domain.chat.GroupRepository
 import com.example.parachat.domain.chat.MessageRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,6 +28,9 @@ object AppModule {
     @Singleton
     fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
 
+    @Provides
+    @Singleton
+    fun provideFirebaseDatabase(): FirebaseDatabase = FirebaseDatabase.getInstance()
 
     @Provides
     @Singleton
@@ -44,25 +48,30 @@ object AppModule {
         return FirebaseAuthRepository(firebaseAuth)
     }
 
+    // MIGRATION: Firebase is now the primary data source for users, messages, and groups
+    // Supabase is used ONLY for media storage (images, videos, PDFs, audio, files)
+
     @Provides
     @Singleton
-    fun provideUserRepository(supabaseClient: SupabaseClient, localDb: ParachatDatabase): UserRepository {
-        return SupabaseUserRepository(supabaseClient, localDb)
+    fun provideUserRepository(database: FirebaseDatabase, localDb: ParachatDatabase): UserRepository {
+        return FirebaseUserRepository(database, localDb)
     }
 
     @Provides
     @Singleton
     fun provideMessageRepository(
-        supabaseClient: SupabaseClient,
-        localDb: ParachatDatabase,
-        @ApplicationContext context: Context
+        database: FirebaseDatabase,
+        localDb: ParachatDatabase
     ): MessageRepository {
-        return SupabaseMessageRepository(supabaseClient, localDb, context)
+        return FirebaseMessageRepository(database, localDb)
     }
 
     @Provides
     @Singleton
-    fun provideGroupRepository(supabaseClient: SupabaseClient): GroupRepository {
-        return SupabaseGroupRepository(supabaseClient)
+    fun provideGroupRepository(database: FirebaseDatabase): GroupRepository {
+        return FirebaseGroupRepository(database)
     }
+
+    // Supabase is kept for media storage only (see MediaStorageRepository)
+    // All chat data (users, messages, groups, conversations) is now stored in Firebase
 }

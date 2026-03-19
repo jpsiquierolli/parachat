@@ -1,19 +1,18 @@
 package com.example.parachat.di;
 
-import android.content.Context;
 import com.example.parachat.data.room.ParachatDatabase;
 import com.example.parachat.domain.chat.MessageRepository;
+import com.google.firebase.database.FirebaseDatabase;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.Preconditions;
 import dagger.internal.QualifierMetadata;
 import dagger.internal.ScopeMetadata;
-import io.github.jan.supabase.SupabaseClient;
 import javax.annotation.processing.Generated;
 import javax.inject.Provider;
 
 @ScopeMetadata("javax.inject.Singleton")
-@QualifierMetadata("dagger.hilt.android.qualifiers.ApplicationContext")
+@QualifierMetadata
 @DaggerGenerated
 @Generated(
     value = "dagger.internal.codegen.ComponentProcessor",
@@ -27,32 +26,28 @@ import javax.inject.Provider;
     "cast"
 })
 public final class AppModule_ProvideMessageRepositoryFactory implements Factory<MessageRepository> {
-  private final Provider<SupabaseClient> supabaseClientProvider;
+  private final Provider<FirebaseDatabase> databaseProvider;
 
   private final Provider<ParachatDatabase> localDbProvider;
 
-  private final Provider<Context> contextProvider;
-
-  public AppModule_ProvideMessageRepositoryFactory(Provider<SupabaseClient> supabaseClientProvider,
-      Provider<ParachatDatabase> localDbProvider, Provider<Context> contextProvider) {
-    this.supabaseClientProvider = supabaseClientProvider;
+  public AppModule_ProvideMessageRepositoryFactory(Provider<FirebaseDatabase> databaseProvider,
+      Provider<ParachatDatabase> localDbProvider) {
+    this.databaseProvider = databaseProvider;
     this.localDbProvider = localDbProvider;
-    this.contextProvider = contextProvider;
   }
 
   @Override
   public MessageRepository get() {
-    return provideMessageRepository(supabaseClientProvider.get(), localDbProvider.get(), contextProvider.get());
+    return provideMessageRepository(databaseProvider.get(), localDbProvider.get());
   }
 
   public static AppModule_ProvideMessageRepositoryFactory create(
-      Provider<SupabaseClient> supabaseClientProvider, Provider<ParachatDatabase> localDbProvider,
-      Provider<Context> contextProvider) {
-    return new AppModule_ProvideMessageRepositoryFactory(supabaseClientProvider, localDbProvider, contextProvider);
+      Provider<FirebaseDatabase> databaseProvider, Provider<ParachatDatabase> localDbProvider) {
+    return new AppModule_ProvideMessageRepositoryFactory(databaseProvider, localDbProvider);
   }
 
-  public static MessageRepository provideMessageRepository(SupabaseClient supabaseClient,
-      ParachatDatabase localDb, Context context) {
-    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.provideMessageRepository(supabaseClient, localDb, context));
+  public static MessageRepository provideMessageRepository(FirebaseDatabase database,
+      ParachatDatabase localDb) {
+    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.provideMessageRepository(database, localDb));
   }
 }

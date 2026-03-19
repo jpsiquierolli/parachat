@@ -20,13 +20,19 @@ class FirebaseGroupRepository(
     override suspend fun createGroup(group: Group): String {
         val ref = groupsRef.push()
         val id = ref.key ?: ""
-        val groupWithId = group.copy(id = id)
+        val normalizedMembers = (group.members + group.creatorId)
+            .filter { it.isNotBlank() }
+            .distinct()
+        val groupWithId = group.copy(id = id, members = normalizedMembers)
         ref.setValue(groupWithId).await()
         return id
     }
 
     override suspend fun updateGroup(group: Group) {
-        groupsRef.child(group.id).setValue(group).await()
+        val normalizedMembers = (group.members + group.creatorId)
+            .filter { it.isNotBlank() }
+            .distinct()
+        groupsRef.child(group.id).setValue(group.copy(members = normalizedMembers)).await()
     }
 
     override suspend fun addMember(groupId: String, userId: String) {
@@ -51,7 +57,7 @@ class FirebaseGroupRepository(
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val groups = snapshot.children.mapNotNull { it.getValue(Group::class.java) }
-                    .filter { it.members.contains(userId) }
+                    .filter { it.members.contains(userId) || it.creatorId == userId }
                 trySend(groups)
             }
 

@@ -1,12 +1,12 @@
 package com.example.parachat.di;
 
 import com.example.parachat.domain.chat.GroupRepository;
+import com.google.firebase.database.FirebaseDatabase;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.Preconditions;
 import dagger.internal.QualifierMetadata;
 import dagger.internal.ScopeMetadata;
-import io.github.jan.supabase.SupabaseClient;
 import javax.annotation.processing.Generated;
 import javax.inject.Provider;
 
@@ -25,23 +25,23 @@ import javax.inject.Provider;
     "cast"
 })
 public final class AppModule_ProvideGroupRepositoryFactory implements Factory<GroupRepository> {
-  private final Provider<SupabaseClient> supabaseClientProvider;
+  private final Provider<FirebaseDatabase> databaseProvider;
 
-  public AppModule_ProvideGroupRepositoryFactory(Provider<SupabaseClient> supabaseClientProvider) {
-    this.supabaseClientProvider = supabaseClientProvider;
+  public AppModule_ProvideGroupRepositoryFactory(Provider<FirebaseDatabase> databaseProvider) {
+    this.databaseProvider = databaseProvider;
   }
 
   @Override
   public GroupRepository get() {
-    return provideGroupRepository(supabaseClientProvider.get());
+    return provideGroupRepository(databaseProvider.get());
   }
 
   public static AppModule_ProvideGroupRepositoryFactory create(
-      Provider<SupabaseClient> supabaseClientProvider) {
-    return new AppModule_ProvideGroupRepositoryFactory(supabaseClientProvider);
+      Provider<FirebaseDatabase> databaseProvider) {
+    return new AppModule_ProvideGroupRepositoryFactory(databaseProvider);
   }
 
-  public static GroupRepository provideGroupRepository(SupabaseClient supabaseClient) {
-    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.provideGroupRepository(supabaseClient));
+  public static GroupRepository provideGroupRepository(FirebaseDatabase database) {
+    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.provideGroupRepository(database));
   }
 }

@@ -22,7 +22,8 @@ import kotlinx.coroutines.withTimeout
 class HomeViewModel @Inject constructor(
     private val authRepository: FirebaseAuthRepository,
     private val userRepository: UserRepository,
-    private val messageRepository: MessageRepository
+    private val messageRepository: MessageRepository,
+    private val localDb: com.example.parachat.data.room.ParachatDatabase
 ) : ViewModel() {
 
     private val _users = MutableStateFlow<List<User>>(emptyList())
@@ -224,13 +225,26 @@ class HomeViewModel @Inject constructor(
                 } catch (e: Exception) {
                     // Ignore timeout or other errors
                 } finally {
+                    try {
+                        localDb.clearAllData()
+                        android.util.Log.d("HomeViewModel", "Cleared local database on sign-out")
+                    } catch (e: Exception) {
+                        android.util.Log.e("HomeViewModel", "Error clearing local database", e)
+                    }
                     authRepository.signOut()
                     onComplete()
                 }
             }
         } else {
-            authRepository.signOut()
-            onComplete()
+            viewModelScope.launch {
+                try {
+                    localDb.clearAllData()
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeViewModel", "Error clearing local database on logout", e)
+                }
+                authRepository.signOut()
+                onComplete()
+            }
         }
     }
 }

@@ -31,10 +31,11 @@ class FirebaseMessageRepository(
     private val pinnedRef = database.getReference("pinnedMessages")
     private val conversationsRef = database.getReference("conversations")
     private val usersRef = database.getReference("users")
+    private val groupsRef = database.getReference("groups")
     private val messageDao = localDb.messageDao
 
     override suspend fun sendMessage(message: Message, isGroup: Boolean) {
-        val conversationId = conversationId(message.senderId, message.receiverId)
+        val conversationId = conversationId(message.senderId, message.receiverId, isGroup)
         val newMessageRef = messagesRef.child(conversationId).push()
         val messageId = newMessageRef.key ?: return
         
@@ -43,10 +44,18 @@ class FirebaseMessageRepository(
             android.util.Base64.encodeToString(message.content.toByteArray(), android.util.Base64.DEFAULT)
         } else message.content
         
-        val payload = message.copy(id = messageId, content = encryptedContent)
+        val payload = message.copy(
+            id = messageId,
+            content = encryptedContent,
+            conversationId = conversationId
+        )
         newMessageRef.setValue(payload).await()
-        updateConversationForSender(payload)
-        updateConversationForReceiver(payload)
+        if (isGroup) {
+            updateConversationForGroupMembers(payload)
+        } else {
+            updateConversationForSender(payload)
+            updateConversationForReceiver(payload)
+        }
         
         // Cache to Room (unencrypted for local view)
         messageDao.insert(com.example.parachat.data.room.chat.MessageEntity(
@@ -67,7 +76,7 @@ class FirebaseMessageRepository(
     }
 
     override fun getMessages(currentUserId: String, otherUserId: String, isGroup: Boolean): Flow<List<Message>> = callbackFlow {
-        val conversationId = conversationId(currentUserId, otherUserId)
+        val conversationId = conversationId(currentUserId, otherUserId, isGroup)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val messages = snapshot.children.mapNotNull { 
@@ -111,8 +120,12 @@ class FirebaseMessageRepository(
                 repositoryScope.launch {
                     messageDao.getAllMessages().collect { entities ->
                         val messages = entities.filter { 
-                            (it.senderId == currentUserId && it.receiverId == otherUserId) ||
-                            (it.senderId == otherUserId && it.receiverId == currentUserId)
+                            if (isGroup) {
+                                it.conversationId == conversationId
+                            } else {
+                                (it.senderId == currentUserId && it.receiverId == otherUserId) ||
+                                    (it.senderId == otherUserId && it.receiverId == currentUserId)
+                            }
                         }.map { 
                             Message(
                                 id = it.id,
@@ -165,17 +178,17 @@ class FirebaseMessageRepository(
     }
 
     override suspend fun pinMessage(currentUserId: String, otherUserId: String, message: Message, isGroup: Boolean) {
-        val conversationId = conversationId(currentUserId, otherUserId)
+        val conversationId = conversationId(currentUserId, otherUserId, isGroup)
         pinnedRef.child(conversationId).setValue(message).await()
     }
 
     override suspend fun unpinMessage(currentUserId: String, otherUserId: String, isGroup: Boolean) {
-        val conversationId = conversationId(currentUserId, otherUserId)
+        val conversationId = conversationId(currentUserId, otherUserId, isGroup)
         pinnedRef.child(conversationId).removeValue().await()
     }
 
     override fun observePinnedMessage(currentUserId: String, otherUserId: String, isGroup: Boolean): Flow<Message?> = callbackFlow {
-        val conversationId = conversationId(currentUserId, otherUserId)
+        val conversationId = conversationId(currentUserId, otherUserId, isGroup)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 trySend(snapshot.getValue(Message::class.java))
@@ -190,14 +203,47 @@ class FirebaseMessageRepository(
     }
 
     override suspend fun markConversationAsRead(currentUserId: String, otherUserId: String, isGroup: Boolean) {
-        val conversationId = conversationId(currentUserId, otherUserId)
+        val conversationId = conversationId(currentUserId, otherUserId, isGroup)
         conversationsRef.child(currentUserId).child(otherUserId).child("unreadCount").setValue(0).await()
+        if (isGroup) return
+
         val snapshot = messagesRef.child(conversationId).get().await()
         snapshot.children.mapNotNull { it.getValue(Message::class.java) }
             .filter { it.receiverId == currentUserId && it.status != MessageStatus.READ }
             .forEach { message ->
                 messagesRef.child(conversationId).child(message.id).child("status").setValue(MessageStatus.READ).await()
             }
+    }
+
+    private suspend fun updateConversationForGroupMembers(message: Message) {
+        val groupId = message.receiverId
+        val groupSnapshot = groupsRef.child(groupId).get().await()
+        val groupName = groupSnapshot.child("name").getValue(String::class.java).orEmpty().ifBlank { "Group" }
+        val creatorId = groupSnapshot.child("creatorId").getValue(String::class.java).orEmpty()
+        val members = groupSnapshot.child("members").children
+            .mapNotNull { it.getValue(String::class.java) }
+            .toMutableSet()
+
+        if (creatorId.isNotBlank()) members.add(creatorId)
+
+        members.forEach { memberId ->
+            val ref = conversationsRef.child(memberId).child(groupId)
+            val snapshot = ref.get().await()
+            val currentUnread = snapshot.child("unreadCount").getValue(Int::class.java) ?: 0
+            val unreadCount = if (memberId == message.senderId) 0 else currentUnread + 1
+
+            val conversation = Conversation(
+                id = conversationId(message.senderId, groupId, true),
+                otherUserId = groupId,
+                title = groupName,
+                lastMessagePreview = previewFor(message),
+                lastMessageTimestamp = message.timestamp,
+                unreadCount = unreadCount,
+                isGroup = true,
+                participants = members.toList()
+            )
+            ref.setValue(conversation).await()
+        }
     }
 
     private suspend fun updateConversationForSender(message: Message) {
@@ -247,5 +293,11 @@ class FirebaseMessageRepository(
         MessageType.FILE -> message.content.ifBlank { "[File]" }
     }
 
-    private fun conversationId(userA: String, userB: String): String = listOf(userA, userB).sorted().joinToString(separator = "_")
+    private fun conversationId(userA: String, userB: String, isGroup: Boolean = false): String {
+        return if (isGroup) {
+            "group_$userB"
+        } else {
+            listOf(userA, userB).sorted().joinToString(separator = "_")
+        }
+    }
 }

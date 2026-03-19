@@ -9,6 +9,7 @@ import com.example.parachat.data.SupabaseProvider
 import com.example.parachat.data.supabase.storage.MediaStorageRepository
 import com.example.parachat.domain.User
 import com.example.parachat.domain.UserRepository
+import com.example.parachat.security.MessageEncryption
 import com.example.parachat.domain.displayName
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageRepository
@@ -56,6 +57,7 @@ class ChatViewModel @Inject constructor(
     private val storageRepository = MediaStorageRepository(SupabaseProvider.client)
 
     private var allMessagesCache = emptyList<Message>()
+    private val conversationKey = MessageEncryption.deriveConversationKey(currentUserId, chatUserId)
 
     init {
         loadData()
@@ -114,10 +116,17 @@ class ChatViewModel @Inject constructor(
         val text = _messageText.value
         if (text.isBlank()) return
 
+        val encryptedContent = try {
+            MessageEncryption.encrypt(text, conversationKey)
+        } catch (e: Exception) {
+            android.util.Log.e("ChatViewModel", "Encryption failed, sending plaintext", e)
+            text
+        }
+
         val message = Message(
             senderId = currentUserId,
             receiverId = chatUserId,
-            content = text,
+            content = encryptedContent,
             type = MessageType.TEXT,
             timestamp = System.currentTimeMillis()
         )

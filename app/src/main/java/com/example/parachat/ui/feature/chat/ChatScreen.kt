@@ -83,6 +83,7 @@ import coil.compose.AsyncImage
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import com.example.parachat.security.MessageEncryption
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageType
 import com.example.parachat.domain.displayName
@@ -372,7 +373,9 @@ fun ChatScreen(
                         isGroupChat = isGroupChat,
                         senderName = senderNames[message.senderId] ?: displayNameFromParts(username = null, email = "", id = message.senderId),
                         onLongClick = { viewModel.pinMessage(message) },
-                        searchQuery = searchQuery
+                        searchQuery = searchQuery,
+                        currentUserId = currentUserId,
+                        chatId = chatId
                     )
                 }
             }
@@ -454,7 +457,9 @@ fun MessageBubble(
     isGroupChat: Boolean,
     senderName: String,
     onLongClick: () -> Unit,
-    searchQuery: String
+    searchQuery: String,
+    currentUserId: String,
+    chatId: String
 ) {
     val context = LocalContext.current
     val alignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
@@ -484,9 +489,19 @@ fun MessageBubble(
 
                 when (message.type) {
                     MessageType.TEXT -> {
+                        val displayText = try {
+                            val decrypted = MessageEncryption.decrypt(
+                                message.content,
+                                MessageEncryption.deriveConversationKey(currentUserId, chatId)
+                            )
+                            decrypted
+                        } catch (e: Exception) {
+                            message.content
+                        }
+
                         val annotatedText = if (searchQuery.isNotBlank()) {
                             buildAnnotatedString {
-                                val content = message.content
+                                val content = displayText
                                 var lastIndex = 0
                                 val query = searchQuery.lowercase()
                                 val lowerContent = content.lowercase()
@@ -504,7 +519,7 @@ fun MessageBubble(
                                 }
                             }
                         } else {
-                            AnnotatedString(message.content)
+                            AnnotatedString(displayText)
                         }
                         Text(text = annotatedText)
                     }
