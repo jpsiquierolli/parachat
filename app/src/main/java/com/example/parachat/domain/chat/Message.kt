@@ -1,22 +1,24 @@
 package com.example.parachat.domain.chat
 
+import com.google.firebase.database.IgnoreExtraProperties
 import kotlinx.serialization.Serializable
 
+@IgnoreExtraProperties
 @Serializable
 data class Message(
-    val id: String = "",
-    val senderId: String = "",
-    val receiverId: String = "", // Can be userId or groupId
-    val groupId: String? = null,
-    val content: String = "",
-    val mediaUrl: String? = null,
-    val mediaThumbnailUrl: String? = null,
-    val mediaDurationMillis: Long? = null,
-    val latitude: Double? = null,
-    val longitude: Double? = null,
-    val type: MessageType = MessageType.TEXT,
-    val status: MessageStatus = MessageStatus.SENT,
-    val timestamp: Long = System.currentTimeMillis()
+    var id: String = "",
+    var senderId: String = "",
+    var receiverId: String = "",
+    var groupId: String? = null,
+    var content: String = "",
+    var mediaUrl: String? = null,
+    var mediaThumbnailUrl: String? = null,
+    var mediaDurationMillis: Long? = null,
+    var latitude: Double? = null,
+    var longitude: Double? = null,
+    var type: MessageType = MessageType.TEXT,
+    var status: MessageStatus = MessageStatus.SENT,
+    var timestamp: Long = System.currentTimeMillis()
 )
 
 @Serializable

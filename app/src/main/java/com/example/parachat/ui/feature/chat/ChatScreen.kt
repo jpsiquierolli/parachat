@@ -360,12 +360,12 @@ fun ChatScreen(
                 )
             }
 
+            val dateKeyFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+            val dateDisplayFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
             val groupedMessages = remember(messages) {
                 messages
                     .sortedBy { it.timestamp }
-                    .groupBy {
-                        SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it.timestamp))
-                    }
+                    .groupBy { dateKeyFormat.format(Date(it.timestamp)) }
             }
 
             val listState = rememberLazyListState()
@@ -383,11 +383,11 @@ fun ChatScreen(
                 state = listState
             ) {
                 val dates = groupedMessages.keys.toList().sorted()
-                dates.forEach { date ->
+                dates.forEach { dateKey ->
                     item {
-                        DateHeader(date)
+                        DateHeader(dateDisplayFormat.format(dateKeyFormat.parse(dateKey)!!))
                     }
-                    val dayMessages = groupedMessages[date] ?: emptyList()
+                    val dayMessages = groupedMessages[dateKey] ?: emptyList()
                     items(dayMessages) { message ->
                         MessageItem(
                             message = message,
@@ -458,7 +458,7 @@ fun MessageItem(
     highlight: String = "",
     onLongClick: () -> Unit = {}
 ) {
-    val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.timestamp))
+    val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(message.timestamp))
     val context = LocalContext.current
     
     Box(
