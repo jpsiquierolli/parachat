@@ -139,6 +139,12 @@ class HomeViewModel @Inject constructor(
             .toMap()
 
         _conversations.value = rawConversationsCache.map { conversation ->
+            if (conversation.isGroup) {
+                return@map conversation.copy(
+                    title = conversation.title.ifBlank { "Grupo" }
+                )
+            }
+
             val normalizedOtherKey = conversation.otherUserId.trim().lowercase()
             val resolvedOtherUser = usersById[conversation.otherUserId] ?: usersByUsername[normalizedOtherKey]
             val resolvedOtherId = resolvedOtherUser?.id ?: conversation.otherUserId

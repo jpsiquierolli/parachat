@@ -33,7 +33,7 @@ class FirebaseMessageRepository(
     private val usersRef = database.getReference("users")
     private val messageDao = localDb.messageDao
 
-    override suspend fun sendMessage(message: Message) {
+    override suspend fun sendMessage(message: Message, isGroup: Boolean) {
         val conversationId = conversationId(message.senderId, message.receiverId)
         val newMessageRef = messagesRef.child(conversationId).push()
         val messageId = newMessageRef.key ?: return
@@ -66,7 +66,7 @@ class FirebaseMessageRepository(
         ))
     }
 
-    override fun getMessages(currentUserId: String, otherUserId: String): Flow<List<Message>> = callbackFlow {
+    override fun getMessages(currentUserId: String, otherUserId: String, isGroup: Boolean): Flow<List<Message>> = callbackFlow {
         val conversationId = conversationId(currentUserId, otherUserId)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
@@ -164,17 +164,17 @@ class FirebaseMessageRepository(
         awaitClose { conversationsRef.child(currentUserId).removeEventListener(listener) }
     }
 
-    override suspend fun pinMessage(currentUserId: String, otherUserId: String, message: Message) {
+    override suspend fun pinMessage(currentUserId: String, otherUserId: String, message: Message, isGroup: Boolean) {
         val conversationId = conversationId(currentUserId, otherUserId)
         pinnedRef.child(conversationId).setValue(message).await()
     }
 
-    override suspend fun unpinMessage(currentUserId: String, otherUserId: String) {
+    override suspend fun unpinMessage(currentUserId: String, otherUserId: String, isGroup: Boolean) {
         val conversationId = conversationId(currentUserId, otherUserId)
         pinnedRef.child(conversationId).removeValue().await()
     }
 
-    override fun observePinnedMessage(currentUserId: String, otherUserId: String): Flow<Message?> = callbackFlow {
+    override fun observePinnedMessage(currentUserId: String, otherUserId: String, isGroup: Boolean): Flow<Message?> = callbackFlow {
         val conversationId = conversationId(currentUserId, otherUserId)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
@@ -189,7 +189,7 @@ class FirebaseMessageRepository(
         awaitClose { pinnedRef.child(conversationId).removeEventListener(listener) }
     }
 
-    override suspend fun markConversationAsRead(currentUserId: String, otherUserId: String) {
+    override suspend fun markConversationAsRead(currentUserId: String, otherUserId: String, isGroup: Boolean) {
         val conversationId = conversationId(currentUserId, otherUserId)
         conversationsRef.child(currentUserId).child(otherUserId).child("unreadCount").setValue(0).await()
         val snapshot = messagesRef.child(conversationId).get().await()

@@ -217,6 +217,96 @@ public final class MessageDao_Impl implements MessageDao {
   }
 
   @Override
+  public Flow<List<MessageEntity>> getMessagesByConversationId(final String conversationId) {
+    final String _sql = "SELECT * FROM messages WHERE conversationId = ? ORDER BY timestamp ASC, id ASC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, conversationId);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"messages"}, new Callable<List<MessageEntity>>() {
+      @Override
+      @NonNull
+      public List<MessageEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfSenderId = CursorUtil.getColumnIndexOrThrow(_cursor, "senderId");
+          final int _cursorIndexOfReceiverId = CursorUtil.getColumnIndexOrThrow(_cursor, "receiverId");
+          final int _cursorIndexOfContent = CursorUtil.getColumnIndexOrThrow(_cursor, "content");
+          final int _cursorIndexOfMediaUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "mediaUrl");
+          final int _cursorIndexOfMediaThumbnailUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "mediaThumbnailUrl");
+          final int _cursorIndexOfMediaDurationMillis = CursorUtil.getColumnIndexOrThrow(_cursor, "mediaDurationMillis");
+          final int _cursorIndexOfLatitude = CursorUtil.getColumnIndexOrThrow(_cursor, "latitude");
+          final int _cursorIndexOfLongitude = CursorUtil.getColumnIndexOrThrow(_cursor, "longitude");
+          final int _cursorIndexOfConversationId = CursorUtil.getColumnIndexOrThrow(_cursor, "conversationId");
+          final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
+          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
+          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
+          final List<MessageEntity> _result = new ArrayList<MessageEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final MessageEntity _item;
+            final String _tmpId;
+            _tmpId = _cursor.getString(_cursorIndexOfId);
+            final String _tmpSenderId;
+            _tmpSenderId = _cursor.getString(_cursorIndexOfSenderId);
+            final String _tmpReceiverId;
+            _tmpReceiverId = _cursor.getString(_cursorIndexOfReceiverId);
+            final String _tmpContent;
+            _tmpContent = _cursor.getString(_cursorIndexOfContent);
+            final String _tmpMediaUrl;
+            if (_cursor.isNull(_cursorIndexOfMediaUrl)) {
+              _tmpMediaUrl = null;
+            } else {
+              _tmpMediaUrl = _cursor.getString(_cursorIndexOfMediaUrl);
+            }
+            final String _tmpMediaThumbnailUrl;
+            if (_cursor.isNull(_cursorIndexOfMediaThumbnailUrl)) {
+              _tmpMediaThumbnailUrl = null;
+            } else {
+              _tmpMediaThumbnailUrl = _cursor.getString(_cursorIndexOfMediaThumbnailUrl);
+            }
+            final Long _tmpMediaDurationMillis;
+            if (_cursor.isNull(_cursorIndexOfMediaDurationMillis)) {
+              _tmpMediaDurationMillis = null;
+            } else {
+              _tmpMediaDurationMillis = _cursor.getLong(_cursorIndexOfMediaDurationMillis);
+            }
+            final Double _tmpLatitude;
+            if (_cursor.isNull(_cursorIndexOfLatitude)) {
+              _tmpLatitude = null;
+            } else {
+              _tmpLatitude = _cursor.getDouble(_cursorIndexOfLatitude);
+            }
+            final Double _tmpLongitude;
+            if (_cursor.isNull(_cursorIndexOfLongitude)) {
+              _tmpLongitude = null;
+            } else {
+              _tmpLongitude = _cursor.getDouble(_cursorIndexOfLongitude);
+            }
+            final String _tmpConversationId;
+            _tmpConversationId = _cursor.getString(_cursorIndexOfConversationId);
+            final long _tmpTimestamp;
+            _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
+            final String _tmpType;
+            _tmpType = _cursor.getString(_cursorIndexOfType);
+            final String _tmpStatus;
+            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
+            _item = new MessageEntity(_tmpId,_tmpSenderId,_tmpReceiverId,_tmpContent,_tmpMediaUrl,_tmpMediaThumbnailUrl,_tmpMediaDurationMillis,_tmpLatitude,_tmpLongitude,_tmpConversationId,_tmpTimestamp,_tmpType,_tmpStatus);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
   public Flow<List<MessageEntity>> getAllMessages() {
     final String _sql = "SELECT * FROM messages ORDER BY timestamp DESC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);

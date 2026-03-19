@@ -18,6 +18,7 @@ class SupabaseGroupRepository @Inject constructor(
 ) : GroupRepository {
 
     private val groupsTable = "groups"
+    private val conversationsTable = "conversations"
 
     private fun logTableMissingOnce() {
         android.util.Log.e(
@@ -35,6 +36,7 @@ class SupabaseGroupRepository @Inject constructor(
 
         try {
             supabase.postgrest[groupsTable].upsert(payload)
+            createGroupConversationRows(payload)
         } catch (e: Exception) {
             android.util.Log.e("SupabaseGroupRepo", "Error creating group", e)
             if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {
@@ -43,6 +45,36 @@ class SupabaseGroupRepository @Inject constructor(
             throw e
         }
         return groupId
+    }
+
+    private suspend fun createGroupConversationRows(group: Group) {
+        if (!SupabaseSchemaGuard.isTableAvailable(conversationsTable)) return
+
+        val members = (group.members + group.creatorId)
+            .filter { it.isNotBlank() }
+            .distinct()
+
+        members.forEach { ownerId ->
+            val rowId = "${ownerId}__group__${group.id}"
+            val payload = mapOf(
+                "id" to rowId,
+                "owner_id" to ownerId,
+                "other_user_id" to group.id,
+                "title" to group.name,
+                "last_message_preview" to "",
+                "last_message_timestamp" to group.createdAt,
+                "unread_count" to 0,
+                "is_group" to true,
+                "participants" to members,
+                "pinned_message_id" to null
+            )
+
+            try {
+                supabase.postgrest[conversationsTable].upsert(payload)
+            } catch (e: Exception) {
+                android.util.Log.e("SupabaseGroupRepo", "Error creating conversation row for group", e)
+            }
+        }
     }
 
     override suspend fun updateGroup(group: Group) {

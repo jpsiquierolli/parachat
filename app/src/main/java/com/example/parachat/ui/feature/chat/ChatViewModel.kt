@@ -6,17 +6,15 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.SupabaseProvider
-import com.example.parachat.data.firebase.chat.FirebaseMessageRepository
 import com.example.parachat.data.supabase.storage.MediaStorageRepository
 import com.example.parachat.domain.User
 import com.example.parachat.domain.UserRepository
+import com.example.parachat.domain.displayName
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageRepository
 import com.example.parachat.domain.chat.MessageType
 import com.example.parachat.domain.chat.sortedForChat
 import com.example.parachat.navigation.ChatRoute
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +31,8 @@ class ChatViewModel @Inject constructor(
 
     private val args = savedStateHandle.toRoute<ChatRoute>()
     val chatUserId = args.userId
+    val isGroupChat = args.isGroup
+    val chatTitle = args.title
     val currentUserId = authRepository.getCurrentUser()?.uid ?: ""
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -46,6 +46,9 @@ class ChatViewModel @Inject constructor(
 
     private val _pinnedMessage = MutableStateFlow<Message?>(null)
     val pinnedMessage = _pinnedMessage.asStateFlow()
+
+    private val _senderNames = MutableStateFlow<Map<String, String>>(emptyMap())
+    val senderNames = _senderNames.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
@@ -63,16 +66,26 @@ class ChatViewModel @Inject constructor(
         if (currentUserId.isBlank()) return
         
         viewModelScope.launch {
-            // Observe other user
             launch {
-                userRepository.observeUser(chatUserId).collect {
-                    _otherUser.value = it
+                userRepository.getAll().collect { users ->
+                    _senderNames.value = users.associate { user ->
+                        user.id to user.displayName()
+                    }
+                }
+            }
+
+            // Observe other user
+            if (!isGroupChat) {
+                launch {
+                    userRepository.observeUser(chatUserId).collect {
+                        _otherUser.value = it
+                    }
                 }
             }
 
             // Observe messages
             launch {
-                messageRepository.getMessages(currentUserId, chatUserId).collect {
+                messageRepository.getMessages(currentUserId, chatUserId, isGroupChat).collect {
                     allMessagesCache = it.sortedForChat()
                     onSearchQueryChange(_searchQuery.value)
                 }
@@ -80,7 +93,7 @@ class ChatViewModel @Inject constructor(
 
             // Observe pinned
             launch {
-                messageRepository.observePinnedMessage(currentUserId, chatUserId).collect {
+                messageRepository.observePinnedMessage(currentUserId, chatUserId, isGroupChat).collect {
                     _pinnedMessage.value = it
                 }
             }
@@ -89,7 +102,7 @@ class ChatViewModel @Inject constructor(
 
     private fun markAsRead() {
         viewModelScope.launch {
-            messageRepository.markConversationAsRead(currentUserId, chatUserId)
+            messageRepository.markConversationAsRead(currentUserId, chatUserId, isGroupChat)
         }
     }
 
@@ -110,14 +123,14 @@ class ChatViewModel @Inject constructor(
         )
 
         viewModelScope.launch {
-            messageRepository.sendMessage(message)
+            messageRepository.sendMessage(message, isGroupChat)
             _messageText.value = ""
         }
     }
 
     fun sendLocationMessage(message: Message) {
         viewModelScope.launch {
-            messageRepository.sendMessage(message)
+            messageRepository.sendMessage(message, isGroupChat)
         }
     }
 
@@ -139,7 +152,7 @@ class ChatViewModel @Inject constructor(
                     type = type,
                     timestamp = System.currentTimeMillis()
                 )
-                messageRepository.sendMessage(message)
+                messageRepository.sendMessage(message, isGroupChat)
             } catch (e: Exception) {
                 // Handle error
                 e.printStackTrace()
@@ -160,13 +173,13 @@ class ChatViewModel @Inject constructor(
 
     fun pinMessage(message: Message) {
         viewModelScope.launch {
-            messageRepository.pinMessage(currentUserId, chatUserId, message)
+            messageRepository.pinMessage(currentUserId, chatUserId, message, isGroupChat)
         }
     }
 
     fun unpinMessage() {
         viewModelScope.launch {
-            messageRepository.unpinMessage(currentUserId, chatUserId)
+            messageRepository.unpinMessage(currentUserId, chatUserId, isGroupChat)
         }
     }
 }

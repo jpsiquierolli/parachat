@@ -51,7 +51,7 @@ import com.example.parachat.ui.theme.ParachatTheme
 
 @Composable
 fun HomeScreen(
-    onUserClick: (String) -> Unit,
+    onUserClick: (String, Boolean, String) -> Unit,
     onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
     onGroupsClick: () -> Unit,
@@ -90,7 +90,7 @@ fun HomeContent(
     searchQuery: String,
     isLoading: Boolean,
     onSearchQueryChange: (String) -> Unit,
-    onUserClick: (String) -> Unit,
+    onUserClick: (String, Boolean, String) -> Unit,
     onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
     onGroupsClick: () -> Unit,
@@ -198,7 +198,7 @@ fun HomeContent(
                         LazyColumn(modifier = Modifier.weight(1f)) {
                             items(users) { user ->
                                 UserItem(user = user, onClick = { 
-                                    onUserClick(user.id)
+                                    onUserClick(user.id, false, user.displayName())
                                     onSearchQueryChange("")
                                     showUserSearch = false
                                 })
@@ -217,7 +217,13 @@ fun HomeContent(
                                 ConversationItem(
                                     conversation = conversation,
                                     photoUrl = usersById[conversation.otherUserId]?.photoUrl,
-                                    onClick = { onUserClick(conversation.otherUserId) }
+                                    onClick = {
+                                        onUserClick(
+                                            conversation.otherUserId,
+                                            conversation.isGroup,
+                                            conversation.title
+                                        )
+                                    }
                                 )
                             }
                         }
@@ -247,24 +253,40 @@ fun ConversationItem(conversation: Conversation, photoUrl: String?, onClick: () 
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (!photoUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = photoUrl,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Surface(
-                modifier = Modifier.size(56.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(28.dp))
+        Box {
+            if (!photoUrl.isNullOrBlank() && !conversation.isGroup) {
+                AsyncImage(
+                    model = photoUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Surface(
+                    modifier = Modifier.size(56.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (conversation.isGroup) Icons.Default.Group else Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
                 }
+            }
+
+            if (conversation.unreadCount > 0) {
+                Surface(
+                    color = MaterialTheme.colorScheme.error,
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .size(14.dp)
+                        .align(Alignment.TopEnd)
+                ) {}
             }
         }
         Spacer(modifier = Modifier.size(16.dp))
@@ -358,7 +380,7 @@ fun HomeContentPreview() {
             searchQuery = "",
             isLoading = false,
             onSearchQueryChange = {},
-            onUserClick = {},
+            onUserClick = { _, _, _ -> },
             onCreateGroupClick = {},
             onProfileClick = {},
             onGroupsClick = {},

@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import android.Manifest
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
@@ -78,6 +80,8 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageType
 import com.example.parachat.domain.displayName
@@ -90,6 +94,8 @@ import java.io.IOException
 @Composable
 fun ChatScreen(
     userId: String,
+    isGroup: Boolean = false,
+    title: String = "",
     onBackClick: () -> Unit
 ) {
     val viewModel = hiltViewModel<ChatViewModel>()
@@ -98,7 +104,10 @@ fun ChatScreen(
     val otherUser by viewModel.otherUser.collectAsState()
     val pinnedMessage by viewModel.pinnedMessage.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val senderNames by viewModel.senderNames.collectAsState()
     val currentUserId = viewModel.currentUserId
+    val chatId = viewModel.chatUserId.ifBlank { userId }
+    val isGroupChat = viewModel.isGroupChat || isGroup
     val context = LocalContext.current
 
     var isSearchActive by remember { mutableStateOf(false) }
@@ -154,7 +163,7 @@ fun ChatScreen(
             getCurrentLocation(context) { lat, long ->
                 val message = Message(
                     senderId = currentUserId,
-                    receiverId = userId,
+                    receiverId = chatId,
                     content = "Localização: $lat, $long",
                     type = MessageType.LOCATION,
                     latitude = lat,
@@ -223,7 +232,7 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!otherUser?.photoUrl.isNullOrBlank()) {
+                        if (!isGroupChat && !otherUser?.photoUrl.isNullOrBlank()) {
                             AsyncImage(
                                 model = otherUser?.photoUrl,
                                 contentDescription = null,
@@ -240,7 +249,7 @@ fun ChatScreen(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = Icons.Default.Person,
+                                        imageVector = if (isGroupChat) Icons.Default.Group else Icons.Default.Person,
                                         contentDescription = null,
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -251,8 +260,21 @@ fun ChatScreen(
                         Spacer(modifier = Modifier.width(8.dp))
 
                         Column {
-                            Text(text = otherUser?.displayName() ?: displayNameFromParts(username = null, email = "", id = userId))
-                            otherUser?.let {
+                            val effectiveGroupTitle = if (title.isNotBlank()) title else viewModel.chatTitle
+                            Text(
+                                text = if (isGroupChat) {
+                                    effectiveGroupTitle.ifBlank { "Grupo" }
+                                } else {
+                                    otherUser?.displayName() ?: displayNameFromParts(username = null, email = "", id = chatId)
+                                }
+                            )
+                            if (isGroupChat) {
+                                Text(
+                                    text = "Grupo",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Gray
+                                )
+                            } else otherUser?.let {
                                 Text(
                                     text = it.status,
                                     style = MaterialTheme.typography.labelSmall,
@@ -330,6 +352,8 @@ fun ChatScreen(
                     MessageBubble(
                         message = message,
                         isCurrentUser = message.senderId == currentUserId,
+                        isGroupChat = isGroupChat,
+                        senderName = senderNames[message.senderId] ?: displayNameFromParts(username = null, email = "", id = message.senderId),
                         onLongClick = { viewModel.pinMessage(message) },
                         searchQuery = searchQuery
                     )
@@ -352,7 +376,7 @@ fun ChatScreen(
                             getCurrentLocation(context) { lat, long ->
                                 val message = Message(
                                     senderId = currentUserId,
-                                    receiverId = userId,
+                                    receiverId = chatId,
                                     content = "Localização: $lat, $long",
                                     type = MessageType.LOCATION,
                                     latitude = lat,
@@ -404,11 +428,18 @@ fun ChatScreen(
 fun MessageBubble(
     message: Message,
     isCurrentUser: Boolean,
+    isGroupChat: Boolean,
+    senderName: String,
     onLongClick: () -> Unit,
     searchQuery: String
 ) {
+    val context = LocalContext.current
     val alignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
-    val containerColor = if (isCurrentUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
+    val containerColor = when {
+        isCurrentUser -> MaterialTheme.colorScheme.primaryContainer
+        isGroupChat -> colorForSender(message.senderId)
+        else -> MaterialTheme.colorScheme.secondaryContainer
+    }
 
     Box(modifier = Modifier.fillMaxWidth().padding(8.dp), contentAlignment = alignment) {
         Card(
@@ -419,6 +450,15 @@ fun MessageBubble(
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(8.dp)) {
+                if (isGroupChat && !isCurrentUser) {
+                    Text(
+                        text = senderName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.size(4.dp))
+                }
+
                 when (message.type) {
                     MessageType.TEXT -> {
                         val annotatedText = if (searchQuery.isNotBlank()) {
@@ -471,8 +511,15 @@ fun MessageBubble(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Localização", color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { 
-                                // Action to open map could be added here
+                            Text(text = "Localização", color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable {
+                                val lat = message.latitude
+                                val lon = message.longitude
+                                if (lat != null && lon != null) {
+                                    val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon")
+                                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(intent)
+                                }
                             })
                         }
                     }
@@ -505,8 +552,21 @@ fun MessageBubble(
 }
 
 @Composable
+private fun colorForSender(senderId: String): Color {
+    val palette = listOf(
+        Color(0xFFE3F2FD),
+        Color(0xFFE8F5E9),
+        Color(0xFFFFF3E0),
+        Color(0xFFF3E5F5),
+        Color(0xFFE0F2F1),
+        Color(0xFFFFEBEE)
+    )
+    val index = kotlin.math.abs(senderId.hashCode()) % palette.size
+    return palette[index]
+}
+
+@Composable
 private fun AudioMessagePlayer(mediaUrl: String?) {
-    val context = LocalContext.current
     var player: MediaPlayer? by remember { mutableStateOf(null) }
     var isPlaying by remember { mutableStateOf(false) }
 
@@ -582,6 +642,14 @@ private fun getCurrentLocation(context: Context, onLocation: (Double, Double) ->
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
             if (location != null) {
                 onLocation(location.latitude, location.longitude)
+            } else {
+                val token = CancellationTokenSource()
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, token.token)
+                    .addOnSuccessListener { current ->
+                        if (current != null) {
+                            onLocation(current.latitude, current.longitude)
+                        }
+                    }
             }
         }
     } catch (e: SecurityException) {

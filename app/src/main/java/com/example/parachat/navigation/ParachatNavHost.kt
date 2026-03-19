@@ -34,7 +34,11 @@ object GroupsRoute
 data class GroupManagementRoute(val groupId: String)
 
 @Serializable
-data class ChatRoute(val userId: String)
+data class ChatRoute(
+    val userId: String,
+    val isGroup: Boolean = false,
+    val title: String = ""
+)
 
 @Composable
 fun ParachatNavHost() {
@@ -73,8 +77,8 @@ fun ParachatNavHost() {
 
         composable<HomeRoute> {
             HomeScreen(
-                onUserClick = { userId ->
-                    navController.navigate(ChatRoute(userId)) {
+                onUserClick = { userId, isGroup, title ->
+                    navController.navigate(ChatRoute(userId = userId, isGroup = isGroup, title = title)) {
                         launchSingleTop = true
                     }
                 },
@@ -137,6 +141,8 @@ fun ParachatNavHost() {
             val route: ChatRoute = backStackEntry.toRoute()
             ChatScreen(
                 userId = route.userId,
+                isGroup = route.isGroup,
+                title = route.title,
                 onBackClick = {
                     navController.popBackStack()
                 }

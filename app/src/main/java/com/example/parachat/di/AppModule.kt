@@ -52,8 +52,12 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideMessageRepository(supabaseClient: SupabaseClient, localDb: ParachatDatabase): MessageRepository {
-        return SupabaseMessageRepository(supabaseClient, localDb)
+    fun provideMessageRepository(
+        supabaseClient: SupabaseClient,
+        localDb: ParachatDatabase,
+        @ApplicationContext context: Context
+    ): MessageRepository {
+        return SupabaseMessageRepository(supabaseClient, localDb, context)
     }
 
     @Provides
