@@ -1,6 +1,7 @@
 package com.example.parachat.ui.feature.home
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,8 +69,7 @@ fun HomeScreen(
         onCreateGroupClick = onCreateGroupClick,
         onProfileClick = onProfileClick,
         onSignOut = {
-            viewModel.signOut()
-            onSignOut()
+            viewModel.signOut(onComplete = onSignOut)
         }
     )
 }
@@ -123,55 +123,99 @@ fun HomeContent(
         Column(modifier = Modifier.padding(paddingValues)) {
             if (currentUser != null) {
                 Text(
-                    text = "Logado como: ${currentUser.username}",
+                    text = "Logado como: ${currentUser.username ?: "Unknown"}",
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
+            
+            // Search Bar always visible
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Buscar contatos e conversas...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
+                singleLine = true
+            )
 
-            if (showUserSearch || searchQuery.isNotBlank()) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    placeholder = { Text("Buscar usuários...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
-                    singleLine = true
-                )
+            // Tabs or Section Headers
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                // Determine active tab based on showing user search or not
                 
-                if (users.isEmpty() && searchQuery.isNotBlank()) {
-                    Box(modifier = Modifier.padding(16.dp)) {
-                        Text("Nenhum usuário encontrado.")
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(users) { user ->
-                            UserItem(user = user, onClick = { 
-                                onUserClick(user.id)
-                                onSearchQueryChange("")
-                                showUserSearch = false
-                            })
-                        }
-                    }
+                androidx.compose.material3.TextButton(
+                    onClick = { showUserSearch = false },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = if (!showUserSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text("Conversas")
+                }
+                
+                androidx.compose.material3.TextButton(
+                    onClick = { showUserSearch = true },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = if (showUserSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text("Contatos")
+                }
+            }
+
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.CircularProgressIndicator()
                 }
             } else {
-                if (isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        androidx.compose.material3.CircularProgressIndicator()
-                    }
-                } else if (conversations.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Nenhuma conversa iniciada.")
+                // Show Users List if: Explicitly requested OR Searching (ViewModel filters users) OR No conversations yet
+                if (showUserSearch || searchQuery.isNotBlank() || conversations.isEmpty()) {
+                    // Show Users List
+                    if (users.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(if (searchQuery.isNotBlank()) "Nenhum usuário encontrado." else "Nenhum contato encontrado.")
+                        }
+                    } else {
+                        LazyColumn(modifier = Modifier.weight(1f)) {
+                            items(users) { user ->
+                                UserItem(user = user, onClick = { 
+                                    onUserClick(user.id)
+                                    onSearchQueryChange("")
+                                    showUserSearch = false
+                                })
+                            }
+                        }
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(conversations) { conversation ->
-                            ConversationItem(conversation = conversation, onClick = { onUserClick(conversation.otherUserId) })
+                    // Show Conversations List
+                    if (conversations.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Nenhuma conversa iniciada.")
+                        }
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            items(conversations) { conversation ->
+                                ConversationItem(conversation = conversation, onClick = { onUserClick(conversation.otherUserId) })
+                            }
                         }
                     }
                 }
+            }
+
+            // Debug Text (Temporary)
+            if (users.isEmpty() && conversations.isEmpty()) {
+                Text(
+                    text = "Debug: Nenhuma conta encontrada no banco de dados. Crie um novo usuário para testar.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(16.dp).align(Alignment.CenterHorizontally)
+                )
             }
         }
     }
@@ -249,7 +293,7 @@ fun UserItem(user: User, onClick: () -> Unit) {
         Spacer(modifier = Modifier.size(16.dp))
         Column {
             Text(
-                text = user.username.ifBlank { "Sem nome" },
+                text = (user.username ?: "Sem nome").ifBlank { "Sem nome" },
                 style = MaterialTheme.typography.titleMedium
             )
             Text(

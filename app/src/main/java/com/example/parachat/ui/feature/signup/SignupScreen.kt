@@ -114,8 +114,11 @@ fun SignupContent(
                         SignupEvent.UsernameChanged(it)
                     )
                 },
-                placeholder = {
+                label = {
                     Text("Nome de usuário")
+                },
+                placeholder = {
+                    Text("Escolha um nome de usuário")
                 },
             )
 
@@ -128,8 +131,11 @@ fun SignupContent(
                         SignupEvent.EmailChanged(it)
                     )
                 },
-                placeholder = {
+                label = {
                     Text("Email")
+                },
+                placeholder = {
+                    Text("exemplo@email.com")
                 },
             )
 
@@ -142,8 +148,11 @@ fun SignupContent(
                         SignupEvent.PasswordChanged(it)
                     )
                 },
-                placeholder = {
+                label = {
                     Text("Senha")
+                },
+                placeholder = {
+                    Text("Mínimo 6 caracteres")
                 },
             )
 

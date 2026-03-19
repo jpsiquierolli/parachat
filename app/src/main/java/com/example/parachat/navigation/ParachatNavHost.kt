@@ -82,7 +82,7 @@ fun ParachatNavHost() {
                 },
                 onSignOut = {
                     navController.navigate(LoginRoute) {
-                        popUpTo(LoginRoute) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )

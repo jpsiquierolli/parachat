@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,6 +62,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -276,7 +282,8 @@ fun ChatScreen(
                     MessageBubble(
                         message = message,
                         isCurrentUser = message.senderId == currentUserId,
-                        onLongClick = { viewModel.pinMessage(message) }
+                        onLongClick = { viewModel.pinMessage(message) },
+                        searchQuery = searchQuery
                     )
                 }
             }
@@ -349,7 +356,8 @@ fun ChatScreen(
 fun MessageBubble(
     message: Message,
     isCurrentUser: Boolean,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    searchQuery: String
 ) {
     val alignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
     val containerColor = if (isCurrentUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
@@ -364,13 +372,52 @@ fun MessageBubble(
         ) {
             Column(modifier = Modifier.padding(8.dp)) {
                 when (message.type) {
-                    MessageType.TEXT -> Text(text = message.content)
+                    MessageType.TEXT -> {
+                        val annotatedText = if (searchQuery.isNotBlank()) {
+                            buildAnnotatedString {
+                                val content = message.content
+                                var lastIndex = 0
+                                val query = searchQuery.lowercase()
+                                val lowerContent = content.lowercase()
+                                var index = lowerContent.indexOf(query, lastIndex)
+                                while (index != -1) {
+                                    append(content.substring(lastIndex, index))
+                                    withStyle(style = SpanStyle(background = Color.Yellow, fontWeight = FontWeight.Bold)) {
+                                        append(content.substring(index, index + query.length))
+                                    }
+                                    lastIndex = index + query.length
+                                    index = lowerContent.indexOf(query, lastIndex)
+                                }
+                                if (lastIndex < content.length) {
+                                    append(content.substring(lastIndex))
+                                }
+                            }
+                        } else {
+                            AnnotatedString(message.content)
+                        }
+                        Text(text = annotatedText)
+                    }
                     MessageType.IMAGE -> {
                         AsyncImage(
                             model = message.mediaUrl,
                             contentDescription = null,
                             modifier = Modifier.size(200.dp).clip(RoundedCornerShape(8.dp))
                         )
+                    }
+                    MessageType.VIDEO -> {
+                        Box(contentAlignment = Alignment.Center) {
+                            AsyncImage(
+                                model = message.mediaUrl,
+                                contentDescription = null,
+                                modifier = Modifier.size(200.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.3f))
+                            )
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Vídeo",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White
+                            )
+                        }
                     }
                     MessageType.LOCATION -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {

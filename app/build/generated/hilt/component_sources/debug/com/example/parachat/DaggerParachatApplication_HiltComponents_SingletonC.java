@@ -412,35 +412,35 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_example_parachat_ui_feature_login_LoginViewModel = "com.example.parachat.ui.feature.login.LoginViewModel";
-
-      static String com_example_parachat_ui_feature_chat_ChatViewModel = "com.example.parachat.ui.feature.chat.ChatViewModel";
-
       static String com_example_parachat_ui_feature_chat_CreateGroupViewModel = "com.example.parachat.ui.feature.chat.CreateGroupViewModel";
-
-      static String com_example_parachat_ui_feature_signup_SignupViewModel = "com.example.parachat.ui.feature.signup.SignupViewModel";
 
       static String com_example_parachat_ui_feature_home_HomeViewModel = "com.example.parachat.ui.feature.home.HomeViewModel";
 
+      static String com_example_parachat_ui_feature_signup_SignupViewModel = "com.example.parachat.ui.feature.signup.SignupViewModel";
+
       static String com_example_parachat_ui_feature_profile_ProfileViewModel = "com.example.parachat.ui.feature.profile.ProfileViewModel";
 
-      @KeepFieldType
-      LoginViewModel com_example_parachat_ui_feature_login_LoginViewModel2;
+      static String com_example_parachat_ui_feature_chat_ChatViewModel = "com.example.parachat.ui.feature.chat.ChatViewModel";
 
-      @KeepFieldType
-      ChatViewModel com_example_parachat_ui_feature_chat_ChatViewModel2;
+      static String com_example_parachat_ui_feature_login_LoginViewModel = "com.example.parachat.ui.feature.login.LoginViewModel";
 
       @KeepFieldType
       CreateGroupViewModel com_example_parachat_ui_feature_chat_CreateGroupViewModel2;
 
       @KeepFieldType
-      SignupViewModel com_example_parachat_ui_feature_signup_SignupViewModel2;
-
-      @KeepFieldType
       HomeViewModel com_example_parachat_ui_feature_home_HomeViewModel2;
 
       @KeepFieldType
+      SignupViewModel com_example_parachat_ui_feature_signup_SignupViewModel2;
+
+      @KeepFieldType
       ProfileViewModel com_example_parachat_ui_feature_profile_ProfileViewModel2;
+
+      @KeepFieldType
+      ChatViewModel com_example_parachat_ui_feature_chat_ChatViewModel2;
+
+      @KeepFieldType
+      LoginViewModel com_example_parachat_ui_feature_login_LoginViewModel2;
     }
   }
 
@@ -500,13 +500,13 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
     private static final class LazyClassKeyProvider {
       static String com_example_parachat_ui_feature_chat_ChatViewModel = "com.example.parachat.ui.feature.chat.ChatViewModel";
 
-      static String com_example_parachat_ui_feature_profile_ProfileViewModel = "com.example.parachat.ui.feature.profile.ProfileViewModel";
-
-      static String com_example_parachat_ui_feature_home_HomeViewModel = "com.example.parachat.ui.feature.home.HomeViewModel";
+      static String com_example_parachat_ui_feature_chat_CreateGroupViewModel = "com.example.parachat.ui.feature.chat.CreateGroupViewModel";
 
       static String com_example_parachat_ui_feature_signup_SignupViewModel = "com.example.parachat.ui.feature.signup.SignupViewModel";
 
-      static String com_example_parachat_ui_feature_chat_CreateGroupViewModel = "com.example.parachat.ui.feature.chat.CreateGroupViewModel";
+      static String com_example_parachat_ui_feature_profile_ProfileViewModel = "com.example.parachat.ui.feature.profile.ProfileViewModel";
+
+      static String com_example_parachat_ui_feature_home_HomeViewModel = "com.example.parachat.ui.feature.home.HomeViewModel";
 
       static String com_example_parachat_ui_feature_login_LoginViewModel = "com.example.parachat.ui.feature.login.LoginViewModel";
 
@@ -514,16 +514,16 @@ public final class DaggerParachatApplication_HiltComponents_SingletonC {
       ChatViewModel com_example_parachat_ui_feature_chat_ChatViewModel2;
 
       @KeepFieldType
-      ProfileViewModel com_example_parachat_ui_feature_profile_ProfileViewModel2;
-
-      @KeepFieldType
-      HomeViewModel com_example_parachat_ui_feature_home_HomeViewModel2;
+      CreateGroupViewModel com_example_parachat_ui_feature_chat_CreateGroupViewModel2;
 
       @KeepFieldType
       SignupViewModel com_example_parachat_ui_feature_signup_SignupViewModel2;
 
       @KeepFieldType
-      CreateGroupViewModel com_example_parachat_ui_feature_chat_CreateGroupViewModel2;
+      ProfileViewModel com_example_parachat_ui_feature_profile_ProfileViewModel2;
+
+      @KeepFieldType
+      HomeViewModel com_example_parachat_ui_feature_home_HomeViewModel2;
 
       @KeepFieldType
       LoginViewModel com_example_parachat_ui_feature_login_LoginViewModel2;

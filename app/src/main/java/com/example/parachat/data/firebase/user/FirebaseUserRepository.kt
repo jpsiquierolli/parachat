@@ -31,22 +31,40 @@ class FirebaseUserRepository(
         userDao.insert(com.example.parachat.data.room.user.UserEntity(
             id = user.id,
             email = user.email,
-            username = user.username
+            username = user.username ?: "Unknown"
         ))
     }
 
     override fun getAll(): Flow<List<User>> = callbackFlow {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val users = snapshot.children.mapNotNull { it.getValue(User::class.java) }
-                
+                val users = snapshot.children.mapNotNull {
+                    try {
+                        // Manually map to ensure safety
+                        val id = it.child("id").getValue(String::class.java) ?: it.key ?: return@mapNotNull null
+                        val email = it.child("email").getValue(String::class.java) ?: ""
+                        val username = it.child("username").getValue(String::class.java) ?: "Unknown"
+                        val photoUrl = it.child("photoUrl").getValue(String::class.java)
+                        val status = it.child("status").getValue(String::class.java) ?: UserStatus.OFFLINE.name
+                        val about = it.child("about").getValue(String::class.java) ?: ""
+                        val lastSeen = it.child("lastSeen").getValue(Long::class.java) ?: 0L
+                        
+                        User(id, email, username, photoUrl, status, about, lastSeen)
+                    } catch (e: Exception) {
+                        android.util.Log.e("FirebaseUserRepo", "Error parsing user: ${it.key}", e)
+                        null
+                    }
+                }
+
+                android.util.Log.d("FirebaseUserRepo", "Loaded ${users.size} users from Firebase, total children: ${snapshot.childrenCount}")
+
                 // Cache to Room
                 repositoryScope.launch {
                     users.forEach { user ->
                         userDao.insert(com.example.parachat.data.room.user.UserEntity(
                             id = user.id,
                             email = user.email,
-                            username = user.username
+                            username = user.username ?: "Unknown"
                         ))
                     }
                 }
@@ -55,6 +73,7 @@ class FirebaseUserRepository(
             }
 
             override fun onCancelled(error: DatabaseError) {
+                android.util.Log.e("FirebaseUserRepo", "getAll cancelled: ${error.message}", error.toException())
                 // On error/offline, try to load from Room
                 repositoryScope.launch {
                     userDao.getAll().collect { entities ->

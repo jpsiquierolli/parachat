@@ -30,7 +30,14 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFirebaseDatabase(): FirebaseDatabase = FirebaseDatabase.getInstance()
+    fun provideFirebaseDatabase(): FirebaseDatabase {
+        // Force specific URL as google-services.json seems to be missing it or pointing to legacy
+        return try {
+            FirebaseDatabase.getInstance("https://parachat-50788-default-rtdb.firebaseio.com/")
+        } catch (e: Exception) {
+            FirebaseDatabase.getInstance()
+        }
+    }
 
     @Provides
     @Singleton

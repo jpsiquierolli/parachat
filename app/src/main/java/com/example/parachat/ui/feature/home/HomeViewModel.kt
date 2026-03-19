@@ -18,6 +18,10 @@ import com.example.parachat.domain.chat.Conversation
 import com.example.parachat.domain.chat.MessageRepository
 import kotlinx.coroutines.delay
 
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.withTimeout
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val authRepository: FirebaseAuthRepository,
@@ -56,21 +60,48 @@ class HomeViewModel @Inject constructor(
 
     private fun fetchData() {
         val currentUserId = authRepository.getCurrentUser()?.uid ?: return
+        
+        // Initial loading state
+        _isLoading.value = true
+
         viewModelScope.launch {
-            _isLoading.value = true
-            
             // Observe conversations
             launch {
-                messageRepository.observeConversations(currentUserId).collect {
-                    _conversations.value = it
-                    _isLoading.value = false
-                }
+                messageRepository.observeConversations(currentUserId)
+                    .catch { e ->
+                        _conversations.value = emptyList()
+                        _isLoading.value = false
+                        android.util.Log.e("HomeViewModel", "Error loading conversations", e)
+                    }
+                    .collect { list ->
+                        _conversations.value = list
+                        _isLoading.value = false
+                    }
             }
 
             // Observe current user
             launch {
-                userRepository.observeUser(currentUserId).collect {
-                    _currentUser.value = it
+                userRepository.observeUser(currentUserId).collect { user ->
+                    if (user == null) {
+                        try {
+                            val firebaseUser = authRepository.getCurrentUser()
+                            if (firebaseUser != null) {
+                                val restoredUser = User(
+                                    id = firebaseUser.uid,
+                                    email = firebaseUser.email ?: "",
+                                    username = firebaseUser.displayName ?: firebaseUser.email?.substringBefore("@") ?: "User",
+                                    status = UserStatus.ONLINE.name,
+                                    lastSeen = System.currentTimeMillis()
+                                )
+                                userRepository.insert(restoredUser)
+                                _currentUser.value = restoredUser
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("HomeViewModel", "Failed to restore user", e)
+                        }
+                    } else {
+                        _currentUser.value = user
+                    }
                 }
             }
 
@@ -78,8 +109,12 @@ class HomeViewModel @Inject constructor(
             launch {
                 userRepository.getAll().collect { allUsers ->
                     allUsersCache = allUsers.filter { it.id != currentUserId }
+                    android.util.Log.d("HomeViewModel", "Fetched all users: ${allUsers.size}, filtered: ${allUsersCache.size}")
+                    _isLoading.value = false
                     if (_searchQuery.value.isNotBlank()) {
                          onSearchQueryChange(_searchQuery.value)
+                    } else {
+                         _users.value = allUsersCache
                     }
                 }
             }
@@ -89,23 +124,37 @@ class HomeViewModel @Inject constructor(
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
         if (query.isBlank()) {
-            _users.value = emptyList() // Don't show users unless searching
+            _users.value = allUsersCache // Show all users when not searching
         } else {
             _users.value = allUsersCache.filter {
-                it.username.contains(query, ignoreCase = true) || it.email.contains(query, ignoreCase = true)
+                (it.username ?: "").contains(query, ignoreCase = true) || it.email.contains(query, ignoreCase = true)
             }
         }
     }
 
-    fun signOut() {
+    fun signOut(onComplete: () -> Unit) {
         val currentUserId = authRepository.getCurrentUser()?.uid
         if (currentUserId != null) {
             viewModelScope.launch {
-                userRepository.updateStatus(currentUserId, UserStatus.OFFLINE)
-                authRepository.signOut()
+                try {
+                    // Timeout after 2 seconds to not block logout
+                    withTimeout(2000) {
+                        try {
+                            userRepository.updateStatus(currentUserId, UserStatus.OFFLINE)
+                        } catch (e: Exception) {
+                            android.util.Log.e("HomeViewModel", "Failed to update status on logout", e)
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore timeout or other errors
+                } finally {
+                    authRepository.signOut()
+                    onComplete()
+                }
             }
         } else {
             authRepository.signOut()
+            onComplete()
         }
     }
 }

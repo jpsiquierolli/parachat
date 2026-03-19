@@ -27,6 +27,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -43,6 +44,7 @@ android {
     buildFeatures {
         compose = true
     }
+
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -97,6 +99,9 @@ dependencies {
     // Icons
     implementation(libs.androidx.compose.material.icons.extended)
 
+    // Fix for Annotation Processor
+    implementation("com.squareup:javapoet:1.13.0")
+
     implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
 
     implementation("com.google.firebase:firebase-analytics")
@@ -110,10 +115,4 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-}
-
-configurations.all {
-    resolutionStrategy {
-        force("com.squareup:javapoet:1.13.0")
-    }
 }

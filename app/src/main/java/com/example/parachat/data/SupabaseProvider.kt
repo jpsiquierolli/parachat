@@ -24,4 +24,10 @@ object SupabaseProvider {
             ignoreUnknownKeys = true
         })
     }
+
+    init {
+        if (SUPABASE_KEY.startsWith("sb_publishable_")) {
+            android.util.Log.e("SupabaseProvider", "WARNING: Using dummy Supabase keys. Profile picture upload WILL FAIL. Please replace with your own keys.")
+        }
+    }
 }

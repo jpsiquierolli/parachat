@@ -1,1 +1,27 @@
-app/google-service.json
+# Gradle
+.gradle/
+build/
+app/build/
+# Local configuration file (sdk.dir)
+local.properties
+# Android Studio and IntelliJ
+.idea/
+*.iml
+*.ide
+.DS_Store
+captures/
+.externalNativeBuild
+.cxx
+# Credentials
+google-services.json
+app/google-services.json
+# Build artifacts
+*.apk
+*.ap_
+*.aab
+# Project specific ignores
+trabalho5.txt
+trabalho5.pdf
+trabalho05.txt
+trabalho05.pdf
+app/src/main/java/com/example/parachat/data/SupabaseProvider.kt

@@ -126,8 +126,17 @@ class FirebaseMessageRepository(
                 trySend(conversations)
             }
 
+//            override fun onCancelled(error: DatabaseError) {
+//                close(error.toException())
+//            }
+
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.e(
+                    "FirebaseMessageRepo",
+                    "observeConversations cancelled: ${error.code} ${error.message}",
+                    error.toException()
+                )
+                trySend(emptyList())
             }
         }
         conversationsRef.child(currentUserId).addValueEventListener(listener)

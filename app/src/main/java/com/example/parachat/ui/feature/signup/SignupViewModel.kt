@@ -6,13 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.firebase.user.FirebaseUserRepository
 import com.example.parachat.domain.User
@@ -21,8 +14,15 @@ import com.example.parachat.domain.UserStatus
 import com.example.parachat.navigation.HomeRoute
 import com.example.parachat.navigation.LoginRoute
 import com.example.parachat.ui.UIEvent
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
+import javax.inject.Inject
 
 @HiltViewModel
 class SignupViewModel @Inject constructor(
@@ -107,23 +107,21 @@ class SignupViewModel @Inject constructor(
                     return@launch
                 }
 
-                // Try to save profile with timeout, but do not block navigation if it fails/times out
+                // Keep FirebaseAuth display name in sync (best-effort).
+                val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                    .setDisplayName(username)
+                    .build()
+                val firebaseUser = authRepository.getCurrentUser()
                 try {
-                    withTimeout(15000L) {
-                        saveUserProfile(userId, email, username)
+                    withTimeout(5000L) {
+                        firebaseUser?.updateProfile(profileUpdates)?.await()
                     }
-                } catch (e: TimeoutCancellationException) {
-                    Log.w("SignupViewModel", "Profile save timed out", e)
-                    _uiEvent.send(UIEvent.ShowSnackBar(
-                        message = "Aviso: O perfil demorou para salvar. Verifique sua conexão."
-                    ))
                 } catch (e: Exception) {
-                    Log.e("SignupViewModel", "Profile save failed", e)
-                    _uiEvent.send(UIEvent.ShowSnackBar(
-                        message = "Aviso: Não foi possível salvar o perfil. O cadastro foi concluído."
-                    ))
+                    Log.w("SignupViewModel", "Auth profile update timed out or failed", e)
                 }
 
+                // Persist user profile before navigating so the user appears in contact discovery.
+                saveUserProfileWithRetry(userId = userId, email = email, username = username)
                 _uiEvent.send(UIEvent.Navigate(HomeRoute))
             } catch (e: Exception) {
                 Log.e("SignupViewModel", "Signup failed", e)
@@ -151,5 +149,23 @@ class SignupViewModel @Inject constructor(
             Log.e("SignupViewModel", "Error saving user profile", e)
             throw e // Re-throw to be caught by the caller or timeout
         }
+    }
+
+    private suspend fun saveUserProfileWithRetry(userId: String, email: String, username: String) {
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                withTimeout(5000L) {
+                    saveUserProfile(userId, email, username)
+                }
+                return
+            } catch (e: Exception) {
+                lastError = e
+                Log.w("SignupViewModel", "Profile save attempt ${attempt + 1} failed", e)
+                if (attempt < 2) delay(600L)
+            }
+        }
+
+        throw lastError ?: IllegalStateException("Falha ao salvar perfil")
     }
 }
