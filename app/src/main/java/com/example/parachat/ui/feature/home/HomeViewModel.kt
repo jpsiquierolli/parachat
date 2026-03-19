@@ -14,6 +14,7 @@ import com.example.parachat.domain.UserStatus
 import com.example.parachat.domain.displayName
 import com.example.parachat.domain.displayNameFromParts
 import com.example.parachat.domain.chat.Conversation
+import com.example.parachat.domain.chat.GroupRepository
 import com.example.parachat.domain.chat.MessageRepository
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.Job
@@ -23,6 +24,7 @@ import kotlinx.coroutines.withTimeout
 class HomeViewModel @Inject constructor(
     private val authRepository: FirebaseAuthRepository,
     private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository,
     private val messageRepository: MessageRepository,
     private val localDb: com.example.parachat.data.room.ParachatDatabase
 ) : ViewModel() {
@@ -50,6 +52,8 @@ class HomeViewModel @Inject constructor(
 
     private var allUsersCache = emptyList<User>()
     private var rawConversationsCache = emptyList<Conversation>()
+    private var groupIdsCache = emptySet<String>()
+    private var groupsByIdTitleCache = emptyMap<String, String>()
     private var observersJob: Job? = null
 
     init {
@@ -116,6 +120,22 @@ class HomeViewModel @Inject constructor(
                     } else {
                         _currentUser.value = user
                     }
+                    }
+            }
+
+            // Observe groups for consistent conversation classification.
+            launch {
+                groupRepository.observeGroups(currentUserId)
+                    .catch { e ->
+                        android.util.Log.e("HomeViewModel", "Error observing groups", e)
+                        groupIdsCache = emptySet()
+                        groupsByIdTitleCache = emptyMap()
+                        updateConversationTitles()
+                    }
+                    .collect { groups ->
+                        groupIdsCache = groups.map { it.id }.toSet()
+                        groupsByIdTitleCache = groups.associate { it.id to it.name.ifBlank { "Grupo" } }
+                        updateConversationTitles()
                     }
             }
 
@@ -225,9 +245,15 @@ class HomeViewModel @Inject constructor(
             .toMap()
 
         _conversations.value = rawConversationsCache.map { conversation ->
-            if (conversation.isGroup) {
+            val inferredGroup = conversation.isGroup ||
+                conversation.otherUserId in groupIdsCache ||
+                conversation.id.startsWith("group_")
+
+            if (inferredGroup) {
                 return@map conversation.copy(
-                    title = conversation.title.ifBlank { "Grupo" }
+                    isGroup = true,
+                    title = groupsByIdTitleCache[conversation.otherUserId]
+                        ?: conversation.title.ifBlank { "Grupo" }
                 )
             }
 

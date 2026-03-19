@@ -3,6 +3,7 @@ package com.example.parachat.ui.feature.home;
 import com.example.parachat.auth.FirebaseAuthRepository;
 import com.example.parachat.data.room.ParachatDatabase;
 import com.example.parachat.domain.UserRepository;
+import com.example.parachat.domain.chat.GroupRepository;
 import com.example.parachat.domain.chat.MessageRepository;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
@@ -30,36 +31,41 @@ public final class HomeViewModel_Factory implements Factory<HomeViewModel> {
 
   private final Provider<UserRepository> userRepositoryProvider;
 
+  private final Provider<GroupRepository> groupRepositoryProvider;
+
   private final Provider<MessageRepository> messageRepositoryProvider;
 
   private final Provider<ParachatDatabase> localDbProvider;
 
   public HomeViewModel_Factory(Provider<FirebaseAuthRepository> authRepositoryProvider,
       Provider<UserRepository> userRepositoryProvider,
+      Provider<GroupRepository> groupRepositoryProvider,
       Provider<MessageRepository> messageRepositoryProvider,
       Provider<ParachatDatabase> localDbProvider) {
     this.authRepositoryProvider = authRepositoryProvider;
     this.userRepositoryProvider = userRepositoryProvider;
+    this.groupRepositoryProvider = groupRepositoryProvider;
     this.messageRepositoryProvider = messageRepositoryProvider;
     this.localDbProvider = localDbProvider;
   }
 
   @Override
   public HomeViewModel get() {
-    return newInstance(authRepositoryProvider.get(), userRepositoryProvider.get(), messageRepositoryProvider.get(), localDbProvider.get());
+    return newInstance(authRepositoryProvider.get(), userRepositoryProvider.get(), groupRepositoryProvider.get(), messageRepositoryProvider.get(), localDbProvider.get());
   }
 
   public static HomeViewModel_Factory create(
       Provider<FirebaseAuthRepository> authRepositoryProvider,
       Provider<UserRepository> userRepositoryProvider,
+      Provider<GroupRepository> groupRepositoryProvider,
       Provider<MessageRepository> messageRepositoryProvider,
       Provider<ParachatDatabase> localDbProvider) {
-    return new HomeViewModel_Factory(authRepositoryProvider, userRepositoryProvider, messageRepositoryProvider, localDbProvider);
+    return new HomeViewModel_Factory(authRepositoryProvider, userRepositoryProvider, groupRepositoryProvider, messageRepositoryProvider, localDbProvider);
   }
 
   public static HomeViewModel newInstance(FirebaseAuthRepository authRepository,
-      UserRepository userRepository, MessageRepository messageRepository,
-      ParachatDatabase localDb) {
-    return new HomeViewModel(authRepository, userRepository, messageRepository, localDb);
+      UserRepository userRepository, GroupRepository groupRepository,
+      MessageRepository messageRepository, ParachatDatabase localDb) {
+    return new HomeViewModel(authRepository, userRepository, groupRepository, messageRepository, localDb);
   }
 }

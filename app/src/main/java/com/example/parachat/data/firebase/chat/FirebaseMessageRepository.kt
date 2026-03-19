@@ -87,7 +87,14 @@ class FirebaseMessageRepository(
             override fun onDataChange(snapshot: DataSnapshot) {
                 val messages = snapshot.children.mapNotNull { 
                     val msg = it.getValue(Message::class.java) ?: return@mapNotNull null
-                    msg.copy(content = normalizeTextPayload(msg.content, msg.type))
+                    msg.copy(
+                        content = decryptTextPayloadForDisplay(
+                            message = msg,
+                            currentUserId = currentUserId,
+                            chatId = otherUserId,
+                            isGroup = isGroup
+                        )
+                    )
                 }.sortedForChat()
                 
                 // Cache to Room
@@ -203,10 +210,13 @@ class FirebaseMessageRepository(
         val conversationId = conversationId(currentUserId, otherUserId, isGroup)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val message = snapshot.getValue(Message::class.java)?.copy(
-                    content = normalizeTextPayload(
-                        snapshot.child("content").getValue(String::class.java).orEmpty(),
-                        snapshot.child("type").getValue(MessageType::class.java) ?: MessageType.TEXT
+                val raw = snapshot.getValue(Message::class.java)
+                val message = raw?.copy(
+                    content = decryptTextPayloadForDisplay(
+                        message = raw,
+                        currentUserId = currentUserId,
+                        chatId = otherUserId,
+                        isGroup = isGroup
                     )
                 )
                 trySend(message)
@@ -325,6 +335,34 @@ class FirebaseMessageRepository(
         } catch (_: Exception) {
             normalized
         }
+    }
+
+    private fun decryptTextPayloadForDisplay(
+        message: Message,
+        currentUserId: String,
+        chatId: String,
+        isGroup: Boolean
+    ): String {
+        val normalized = normalizeTextPayload(message.content, message.type)
+        if (message.type != MessageType.TEXT || normalized.isBlank()) return normalized
+
+        val candidateKeys = linkedSetOf(
+            MessageEncryption.deriveConversationKey(message.senderId, message.receiverId),
+            MessageEncryption.deriveConversationKey(currentUserId, chatId),
+            MessageEncryption.deriveConversationKey(currentUserId, message.senderId)
+        )
+
+        if (isGroup) {
+            candidateKeys.add(MessageEncryption.deriveConversationKey(message.senderId, chatId))
+            candidateKeys.add(MessageEncryption.deriveConversationKey(currentUserId, message.receiverId))
+        }
+
+        candidateKeys.forEach { key ->
+            val decrypted = runCatching { MessageEncryption.decrypt(normalized, key) }.getOrNull()
+            if (!decrypted.isNullOrBlank()) return decrypted
+        }
+
+        return normalized
     }
 
     private fun normalizeTextPayload(content: String, type: MessageType): String {
