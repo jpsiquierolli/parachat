@@ -11,7 +11,9 @@ import kotlinx.coroutines.launch
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.SupabaseProvider
 import com.example.parachat.data.firebase.chat.FirebaseMessageRepository
+import com.example.parachat.data.firebase.user.FirebaseUserRepository
 import com.example.parachat.data.supabase.storage.MediaStorageRepository
+import com.example.parachat.domain.User
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageType
 import com.example.parachat.navigation.ChatRoute
@@ -28,6 +30,7 @@ class ChatViewModel(
     private val database = ParachatDatabase.getInstance(application)
     private val messageRepository = FirebaseMessageRepository(FirebaseDatabase.getInstance(), database.messageDao)
     private val storageRepository = MediaStorageRepository(SupabaseProvider.client)
+    private val userRepository = FirebaseUserRepository(FirebaseDatabase.getInstance())
 
     private val args = savedStateHandle.toRoute<ChatRoute>()
     val chatUserId = args.userId
@@ -45,6 +48,10 @@ class ChatViewModel(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
+
+    // Map of userId -> User for resolving sender names/avatars in groups
+    private val _senderProfiles = MutableStateFlow<Map<String, User>>(emptyMap())
+    val senderProfiles = _senderProfiles.asStateFlow()
 
     private var allMessagesCache = emptyList<Message>()
 
@@ -65,15 +72,37 @@ class ChatViewModel(
     private fun loadMessages() {
         viewModelScope.launch {
             if (chatGroupId != null) {
-                messageRepository.getGroupMessages(chatGroupId).collect {
-                    allMessagesCache = it
+                messageRepository.getGroupMessages(chatGroupId).collect { msgs ->
+                    allMessagesCache = msgs
                     updateFilteredMessages()
+                    // Fetch profiles for any new senders we haven't seen yet
+                    fetchMissingSenderProfiles(msgs.map { it.senderId }.toSet())
                 }
             } else if (chatUserId != null) {
-                messageRepository.getMessages(currentUserId, chatUserId).collect {
-                    allMessagesCache = it
+                messageRepository.getMessages(currentUserId, chatUserId).collect { msgs ->
+                    allMessagesCache = msgs
                     updateFilteredMessages()
                 }
+            }
+        }
+    }
+
+    private fun fetchMissingSenderProfiles(senderIds: Set<String>) {
+        viewModelScope.launch {
+            val current = _senderProfiles.value
+            val missing = senderIds.filter { it !in current }
+            if (missing.isEmpty()) return@launch
+            val newProfiles = current.toMutableMap()
+            for (id in missing) {
+                try {
+                    userRepository.observeUser(id).collect { user ->
+                        if (user != null) {
+                            newProfiles[id] = user
+                            _senderProfiles.value = newProfiles.toMap()
+                        }
+                        return@collect
+                    }
+                } catch (_: Exception) {}
             }
         }
     }

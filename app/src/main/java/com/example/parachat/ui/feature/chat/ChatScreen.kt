@@ -61,6 +61,7 @@ fun ChatScreen(
     val messageText by viewModel.messageText.collectAsState()
     val currentUserId = viewModel.currentUserId
     val context = LocalContext.current
+    val senderProfiles by viewModel.senderProfiles.collectAsState()
 
     val pinnedMessage by viewModel.pinnedMessage.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -404,6 +405,7 @@ fun ChatScreen(
                             message = message,
                             isCurrentUser = message.senderId == currentUserId,
                             highlight = searchQuery,
+                            senderProfiles = senderProfiles,
                             onLongClick = {
                                 viewModel.pinMessage(message)
                                 Toast.makeText(context, "Mensagem fixada!", Toast.LENGTH_SHORT).show()
@@ -467,46 +469,81 @@ fun MessageItem(
     message: Message,
     isCurrentUser: Boolean,
     highlight: String = "",
+    senderProfiles: Map<String, com.example.parachat.domain.User> = emptyMap(),
     onLongClick: () -> Unit = {}
 ) {
     val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(message.timestamp))
     val context = LocalContext.current
-    
+    val isGroupMessage = message.groupId != null
+    val senderProfile = senderProfiles[message.senderId]
+    val senderName = senderProfile?.username?.ifBlank { message.senderId } ?: message.senderId
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
         contentAlignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
     ) {
-        Column(horizontalAlignment = if (isCurrentUser) Alignment.End else Alignment.Start) {
-             if (!isCurrentUser && message.groupId != null) {
-                 Text(
-                     text = message.senderId,
-                     style = MaterialTheme.typography.labelSmall,
-                     modifier = Modifier.padding(start = 8.dp, bottom = 2.dp),
-                     color = MaterialTheme.colorScheme.primary
-                 )
-             }
-             Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(
-                        topStart = 12.dp,
-                        topEnd = 12.dp,
-                        bottomStart = if (isCurrentUser) 12.dp else 0.dp,
-                        bottomEnd = if (isCurrentUser) 0.dp else 12.dp
-                    ))
-                    .background(
-                        if (isCurrentUser) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onLongPress = { onLongClick() }
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = if (isCurrentUser) Arrangement.End else Arrangement.Start,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Avatar for other users in group chats
+            if (!isCurrentUser && isGroupMessage) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 6.dp, bottom = 4.dp)
+                        .size(32.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val photoUrl = senderProfile?.photoUrl
+                    if (!photoUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = photoUrl,
+                            contentDescription = senderName,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Text(
+                            text = senderName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-                    .padding(8.dp)
-                    .widthIn(max = 280.dp)
-            ) {
+                }
+            }
+
+            Column(horizontalAlignment = if (isCurrentUser) Alignment.End else Alignment.Start) {
+                // Username label for other users in groups
+                if (!isCurrentUser && isGroupMessage) {
+                    Text(
+                        text = senderName,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(
+                            topStart = 12.dp,
+                            topEnd = 12.dp,
+                            bottomStart = if (isCurrentUser) 12.dp else 0.dp,
+                            bottomEnd = if (isCurrentUser) 0.dp else 12.dp
+                        ))
+                        .background(
+                            if (isCurrentUser) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .pointerInput(Unit) {
+                            detectTapGestures(onLongPress = { onLongClick() })
+                        }
+                        .padding(8.dp)
+                        .widthIn(max = 260.dp)
+                ) {
                 Column {
                     if (message.content.isNotBlank()) {
                          Text(
@@ -611,10 +648,11 @@ fun MessageItem(
                             )
                         }
                     }
-                }
-            }
-        }
-    }
+                }  // end inner Column
+            }  // end bubble Box
+        }  // end outer Column
+        }  // end Row
+    }  // end outer Box
 }
 
 @Composable

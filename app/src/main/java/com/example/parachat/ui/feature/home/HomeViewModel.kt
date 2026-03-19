@@ -13,6 +13,7 @@ import com.example.parachat.domain.UserStatus
 import com.example.parachat.domain.chat.Group
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -50,6 +51,12 @@ class HomeViewModel : ViewModel() {
         if (currentUserId.isNotBlank()) {
             viewModelScope.launch {
                 try { userRepository.updateStatus(currentUserId, UserStatus.ONLINE) } catch (_: Exception) {}
+            }
+            // Always refresh and store the FCM token so push notifications work
+            FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                FirebaseDatabase.getInstance()
+                    .getReference("users/$currentUserId/fcmToken")
+                    .setValue(token)
             }
         }
     }
