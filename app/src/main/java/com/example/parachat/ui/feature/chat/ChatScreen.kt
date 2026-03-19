@@ -133,20 +133,34 @@ fun ChatScreen(
         }
     }
 
-    fun launchCamera() {
-        val file = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        cameraImageUri = uri
-        cameraLauncher.launch(uri)
-    }
-
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            launchCamera()
+            try {
+                val file = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                cameraImageUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Erro ao abrir câmera.", Toast.LENGTH_SHORT).show()
+            }
         } else {
             Toast.makeText(context, "Permissão de câmera negada.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchCamera() {
+        try {
+            val file = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            cameraImageUri = uri
+            cameraLauncher.launch(uri)
+        } catch (e: SecurityException) {
+            // Permission was revoked (e.g. after reinstall) — request it again
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Erro ao abrir câmera.", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -277,11 +291,7 @@ fun ChatScreen(
                         },
                         onCameraClick = {
                             showBottomSheet = false
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                                launchCamera()
-                            } else {
-                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                            }
+                            launchCamera()
                         },
                         onLocationClick = {
                             showBottomSheet = false
