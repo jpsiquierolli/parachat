@@ -44,8 +44,9 @@ class FirebaseMessageRepository(
         }
         val secureMessage = message.copy(content = encryptedContent)
 
-        if (secureMessage.groupId != null) {
-            val newMessageRef = groupMessagesRef.child(secureMessage.groupId).push()
+        val groupId = secureMessage.groupId
+        if (groupId != null) {
+            val newMessageRef = groupMessagesRef.child(groupId).push()
             val messageId = newMessageRef.key ?: return
             val payload = secureMessage.copy(id = messageId)
             newMessageRef.setValue(payload).await()
