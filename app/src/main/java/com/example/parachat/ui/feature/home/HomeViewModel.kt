@@ -181,6 +181,19 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun deleteConversation(chatId: String, isGroup: Boolean) {
+        val currentUserId = authRepository.getCurrentUser()?.uid ?: return
+        if (chatId.isBlank()) return
+
+        viewModelScope.launch {
+            runCatching {
+                messageRepository.deleteConversation(currentUserId, chatId, isGroup)
+            }.onFailure { error ->
+                android.util.Log.e("HomeViewModel", "Error deleting conversation", error)
+            }
+        }
+    }
+
     fun importDeviceContacts(emails: List<String>, names: List<String>) {
         val currentUserId = authRepository.getCurrentUser()?.uid ?: return
         val normalizedEmails = emails.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet()

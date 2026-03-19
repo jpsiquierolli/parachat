@@ -177,6 +177,18 @@ class FirebaseMessageRepository(
         awaitClose { conversationsRef.child(currentUserId).removeEventListener(listener) }
     }
 
+    override suspend fun deleteConversation(currentUserId: String, chatId: String, isGroup: Boolean) {
+        if (currentUserId.isBlank() || chatId.isBlank()) return
+
+        conversationsRef.child(currentUserId).child(chatId).removeValue().await()
+
+        // Also clear local unread baseline to avoid stale notification deltas.
+        unreadBaselineByConversation.keys
+            .filter { it.contains(chatId) }
+            .toList()
+            .forEach { unreadBaselineByConversation.remove(it) }
+    }
+
     override suspend fun pinMessage(currentUserId: String, otherUserId: String, message: Message, isGroup: Boolean) {
         val conversationId = conversationId(currentUserId, otherUserId, isGroup)
         pinnedRef.child(conversationId).setValue(message).await()

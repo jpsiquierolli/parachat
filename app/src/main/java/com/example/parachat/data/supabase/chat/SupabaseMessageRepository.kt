@@ -113,6 +113,23 @@ class SupabaseMessageRepository @Inject constructor(
         awaitClose { }
     }
 
+    override suspend fun deleteConversation(currentUserId: String, chatId: String, isGroup: Boolean) {
+        if (!SupabaseSchemaGuard.isTableAvailable(conversationsTable)) return
+
+        val rowId = conversationRowId(currentUserId, chatId, isGroup)
+        try {
+            supabase.postgrest[conversationsTable].delete {
+                filter { eq("id", rowId) }
+            }
+            unreadBaselineByConversation.remove(rowId)
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseMessageRepo", "Error deleting conversation", e)
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(conversationsTable, e)) {
+                logTableMissingOnce(conversationsTable)
+            }
+        }
+    }
+
     override suspend fun pinMessage(currentUserId: String, chatId: String, message: Message, isGroup: Boolean) {
         if (!SupabaseSchemaGuard.isTableAvailable(conversationsTable)) return
 

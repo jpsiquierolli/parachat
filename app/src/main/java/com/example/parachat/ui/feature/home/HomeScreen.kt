@@ -7,6 +7,7 @@ import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -105,6 +107,7 @@ fun HomeScreen(
             }
         },
         onUserClick = onUserClick,
+        onDeleteConversation = viewModel::deleteConversation,
         onCreateGroupClick = onCreateGroupClick,
         onProfileClick = onProfileClick,
         onGroupsClick = onGroupsClick,
@@ -127,12 +130,14 @@ fun HomeContent(
     onToggleContact: (String, Boolean) -> Unit,
     onImportContacts: () -> Unit,
     onUserClick: (String, Boolean, String) -> Unit,
+    onDeleteConversation: (String, Boolean) -> Unit,
     onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
     onGroupsClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
     var showUserSearch by remember { mutableStateOf(false) }
+    var pendingDeleteConversation by remember { mutableStateOf<Conversation?>(null) }
 
     Scaffold(
         topBar = {
@@ -146,7 +151,18 @@ fun HomeContent(
                         Icon(Icons.Default.Group, contentDescription = "Grupos")
                     }
                     IconButton(onClick = onProfileClick) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
+                        if (!currentUser?.photoUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = currentUser?.photoUrl,
+                                contentDescription = "Perfil",
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
+                        }
                     }
                     IconButton(onClick = onSignOut) {
                         Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sair")
@@ -268,12 +284,38 @@ fun HomeContent(
                                             conversation.isGroup,
                                             conversation.title
                                         )
+                                    },
+                                    onLongPress = {
+                                        pendingDeleteConversation = conversation
                                     }
                                 )
                             }
                         }
                     }
                 }
+            }
+
+            pendingDeleteConversation?.let { conversation ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { pendingDeleteConversation = null },
+                    title = { Text("Excluir conversa") },
+                    text = { Text("Deseja remover esta conversa da sua lista?") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                onDeleteConversation(conversation.otherUserId, conversation.isGroup)
+                                pendingDeleteConversation = null
+                            }
+                        ) {
+                            Text("Excluir")
+                        }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { pendingDeleteConversation = null }) {
+                            Text("Cancelar")
+                        }
+                    }
+                )
             }
 
             // Debug Text (Temporary)
@@ -294,12 +336,18 @@ fun ConversationItem(
     conversation: Conversation,
     photoUrl: String?,
     currentUserId: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongPress: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onLongPress() }
+                )
+            }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -490,6 +538,7 @@ fun HomeContentPreview() {
             onToggleContact = { _, _ -> },
             onImportContacts = {},
             onUserClick = { _, _, _ -> },
+            onDeleteConversation = { _, _ -> },
             onCreateGroupClick = {},
             onProfileClick = {},
             onGroupsClick = {},
