@@ -1,6 +1,7 @@
 package com.example.parachat.data.supabase.chat
 
 import com.example.parachat.data.supabase.SupabaseSchemaGuard
+import com.example.parachat.domain.chat.Conversation
 import com.example.parachat.domain.chat.Group
 import com.example.parachat.domain.chat.GroupRepository
 import io.github.jan.supabase.SupabaseClient
@@ -36,7 +37,7 @@ class SupabaseGroupRepository @Inject constructor(
 
         try {
             supabase.postgrest[groupsTable].upsert(payload)
-            createGroupConversationRows(payload)
+            syncGroupConversationRows(payload)
         } catch (e: Exception) {
             android.util.Log.e("SupabaseGroupRepo", "Error creating group", e)
             if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {
@@ -47,26 +48,51 @@ class SupabaseGroupRepository @Inject constructor(
         return groupId
     }
 
-    private suspend fun createGroupConversationRows(group: Group) {
+    private suspend fun syncGroupConversationRows(group: Group) {
         if (!SupabaseSchemaGuard.isTableAvailable(conversationsTable)) return
 
         val members = (group.members + group.creatorId)
             .filter { it.isNotBlank() }
             .distinct()
 
+        val existingRows = try {
+            supabase.postgrest[conversationsTable].select {
+                filter {
+                    eq("other_user_id", group.id)
+                    eq("is_group", true)
+                }
+            }.decodeList<Conversation>()
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseGroupRepo", "Error loading existing group conversation rows", e)
+            emptyList()
+        }
+
+        existingRows
+            .filter { row -> row.id.substringBefore("__group__") !in members }
+            .forEach { staleRow ->
+                try {
+                    supabase.postgrest[conversationsTable].delete {
+                        filter { eq("id", staleRow.id) }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("SupabaseGroupRepo", "Error deleting stale group conversation row", e)
+                }
+            }
+
         members.forEach { ownerId ->
             val rowId = "${ownerId}__group__${group.id}"
+            val current = existingRows.firstOrNull { it.id == rowId }
             val payload = mapOf(
                 "id" to rowId,
                 "owner_id" to ownerId,
                 "other_user_id" to group.id,
                 "title" to group.name,
-                "last_message_preview" to "",
-                "last_message_timestamp" to group.createdAt,
-                "unread_count" to 0,
+                "last_message_preview" to (current?.lastMessagePreview ?: ""),
+                "last_message_timestamp" to (current?.lastMessageTimestamp ?: group.createdAt),
+                "unread_count" to (current?.unreadCount ?: 0),
                 "is_group" to true,
                 "participants" to members,
-                "pinned_message_id" to null
+                "pinned_message_id" to current?.pinnedMessageId
             )
 
             try {
@@ -84,6 +110,7 @@ class SupabaseGroupRepository @Inject constructor(
 
         try {
             supabase.postgrest[groupsTable].upsert(group)
+            syncGroupConversationRows(group)
         } catch (e: Exception) {
             android.util.Log.e("SupabaseGroupRepo", "Error updating group", e)
             if (SupabaseSchemaGuard.markMissingTableIfNeeded(groupsTable, e)) {

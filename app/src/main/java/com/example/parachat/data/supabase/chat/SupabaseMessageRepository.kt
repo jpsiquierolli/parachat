@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.example.parachat.R
 import com.example.parachat.data.room.ParachatDatabase
 import com.example.parachat.data.supabase.SupabaseSchemaGuard
 import com.example.parachat.domain.chat.Conversation
@@ -19,6 +18,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
@@ -94,8 +94,10 @@ class SupabaseMessageRepository @Inject constructor(
                         order("last_message_timestamp", Order.DESCENDING)
                     }.decodeList<Conversation>()
 
-                    maybeNotifyUnread(conversations)
-                    send(conversations)
+                    val mergedConversations = mergeMissingGroupConversations(currentUserId, conversations)
+
+                    maybeNotifyUnread(mergedConversations)
+                    send(mergedConversations)
                 } catch (e: Exception) {
                     android.util.Log.e("SupabaseMessageRepo", "Error fetching conversations", e)
                     if (SupabaseSchemaGuard.markMissingTableIfNeeded(conversationsTable, e)) {
@@ -107,6 +109,8 @@ class SupabaseMessageRepository @Inject constructor(
                 delay(CONVERSATIONS_SYNC_INTERVAL_MS)
             }
         }
+
+        awaitClose { }
     }
 
     override suspend fun pinMessage(currentUserId: String, chatId: String, message: Message, isGroup: Boolean) {
@@ -426,6 +430,9 @@ class SupabaseMessageRepository @Inject constructor(
         conversations.forEach { conversation ->
             val previous = unreadBaselineByConversation[conversation.id]
             if (previous == null) {
+                if (conversation.unreadCount > 0) {
+                    showUnreadNotification(conversation)
+                }
                 unreadBaselineByConversation[conversation.id] = conversation.unreadCount
                 return@forEach
             }
@@ -452,7 +459,7 @@ class SupabaseMessageRepository @Inject constructor(
         }
 
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(if (conversation.isGroup) "Nova mensagem no grupo" else "Nova mensagem")
             .setContentText(
                 conversation.title.ifBlank {
@@ -464,6 +471,52 @@ class SupabaseMessageRepository @Inject constructor(
             .build()
 
         manager.notify(conversation.id.hashCode(), notification)
+    }
+
+    private suspend fun mergeMissingGroupConversations(
+        currentUserId: String,
+        baseConversations: List<Conversation>
+    ): List<Conversation> {
+        if (!SupabaseSchemaGuard.isTableAvailable(groupsTable)) {
+            return baseConversations
+        }
+
+        return try {
+            val groups = supabase.postgrest[groupsTable].select {
+                order("created_at", Order.DESCENDING)
+            }.decodeList<Group>()
+
+            val visibleGroups = groups.filter { group ->
+                group.creatorId == currentUserId || group.members.contains(currentUserId)
+            }
+
+            val existingGroupIds = baseConversations
+                .asSequence()
+                .filter { it.isGroup }
+                .map { it.otherUserId }
+                .toSet()
+
+            val synthetic = visibleGroups
+                .filter { it.id !in existingGroupIds }
+                .map { group ->
+                    Conversation(
+                        id = conversationRowId(currentUserId, group.id, isGroup = true),
+                        otherUserId = group.id,
+                        title = group.name,
+                        lastMessagePreview = "",
+                        lastMessageTimestamp = group.createdAt,
+                        unreadCount = 0,
+                        isGroup = true,
+                        participants = (group.members + group.creatorId).distinct(),
+                        pinnedMessageId = null
+                    )
+                }
+
+            (baseConversations + synthetic).sortedByDescending { it.lastMessageTimestamp }
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseMessageRepo", "Error merging group conversations", e)
+            baseConversations
+        }
     }
 
     private fun Message.toEntity() = com.example.parachat.data.room.chat.MessageEntity(
