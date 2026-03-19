@@ -11,16 +11,12 @@ plugins {
 
 android {
     namespace = "com.example.parachat"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.parachat"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -66,6 +62,9 @@ dependencies {
     implementation(libs.supabase.realtime)
     implementation(libs.supabase.storage)
     implementation(libs.ktor.client.cio)
+    
+    // Firebase Messaging (version managed by BoM)
+    implementation(libs.firebase.messaging)
 
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
@@ -93,7 +92,7 @@ dependencies {
     // Icons
     implementation(libs.androidx.compose.material.icons.extended)
 
-    implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
+    implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
 
     implementation("com.google.firebase:firebase-analytics")
 

@@ -1,0 +1,182 @@
+Trabalho Prático: aplicativo de mensagens
+instantâneas
+Alexsandro Santos Soares
+prof.asoares@ufu.br
+Universidade Federal de Uberlândia
+Faculdade de Computação
+
+Descrição Geral
+Quatro estudantes devem desenvolver, em conjunto, um aplicativo de mensagens instantâneas para o Android.
+Os objetivos deste trabalho são:
+• Aprender a realizar a sincronização de dados em tempo real.
+• Manipulação de notificações push: envio de notificações em tempo real
+para usuários, tanto para avisar sobre novas mensagens quanto sobre
+eventos importantes dentro do app.
+• Integração de APIs externas para funcionalidades extras, como envio
+de mı́dia, login social, criptografia e análise de dados.
+• Gerenciar estados sincronizados: lidar com diferentes estados (online/offline),
+envio e recebimento de mensagens, marcação de lidas e não lidas, controle de grupos/conversas.
+• Utilizar de forma simples os sensores mais comuns do smartphone
+(GPS, câmera e microfone) no contexto de um aplicativo de mensagens.
+1
+
+Informações importantes
+• valor: 48 pontos
+• Data de entrega e apresentação: 19/03/2026, quinta-feira, no
+horário da aula, em nossa sala.
+• Grupo: 4 membros
+– Caso haja alteração de membros do grupo em relação ao trabalho
+anterior, enviar impreterivelmente até o dia 09/03, segunda-feira,
+os nomes dos membros pelo Teams.
+– Enviar até 10/03, um plano de desenvolvimento do quinto trabalho. Coloquem o plano na pasta Arquivos/Planos/T5 no Teams.
+Nomeiem o plano como planoT5grupoX, onde X é o número do
+grupo.
+Esse plano deve conter um cronograma e as atividades individualizadas para cada membro do grupo.
+• Modo de envio: link para o GitHub do projeto.
+• LLMs: as regras para o uso de LLM’s são as mesmas do primeiro trabalho. Releia o arquivo regras.pdf, na pasta Trabalhos da disciplina
+no Teams.
+• Apresentação: a ordem de apresentação será por sorteio. Entretanto,
+grupos que se voluntariarem até 4 horas antes da apresentação terão
+prioridade na apresentação.
+
+Funcionalidades Requeridas
+1. Cadastro e Autenticação de Usuário
+• Login e cadastro via email/senha, telefone ou contas sociais.
+• Recuperação de senha.
+
+2
+
+2. Criação, Listagem e Busca de Conversas
+• Visualizar lista de conversas/canais.
+• Busca rápida por contatos/conversas existentes.
+3. Envio e Recebimento de Mensagens
+• Mensagens em tempo real (texto).
+• Sincronização imediata entre dispositivos e usuários.
+• Confirmação de envio/recebimento (status: enviada, entregue,
+lida).
+4. Notificações Push
+• Aviso ao usuário ao receber nova mensagem.
+• Notificações personalizadas para grupos ou chats especı́ficos.
+5. Gerenciamento de Contatos
+• Adicionar/remover contatos.
+• Importação de contatos do dispositivo.
+6. Criação e Gerenciamento de Grupos
+• Criar grupos com múltiplos usuários.
+• Nomear/editar grupos.
+• Adicionar/remover participantes.
+7. Envio de Mı́dia
+• Imagens, vı́deos, áudios e arquivos anexos.
+• Visualização prévia de imagens e vı́deos.
+8. Perfil do Usuário
+• Editar nome, foto e informações pessoais.
+3
+
+• Status do usuário (online/offline, ocupado, etc.).
+9. Interface de Chat Amigável
+• Exibição de mensagens agrupadas por data/hora.
+• Bolhas de conversa, avatares de usuário.
+• Suporte a emojis e stickers.
+10. Sincronização em Tempo Real e Offline
+• Sincronização rápida entre dispositivos.
+• Armazenamento local para uso offline, atualização ao voltar ao
+online.
+11. Segurança
+• Criptografia de mensagens.
+• Controle de privacidade dos dados do usuário.
+12. Logout e Encerramento de Sessão
+• Encerrar sessão de forma segura.
+• Gerenciar múltiplas sessões em diferentes dispositivos.
+
+Uso mı́nimo de GPS, câmera e microfone
+Além das funcionalidades acima, o aplicativo deve integrar, de forma simples, os seguintes recursos do smartphone, que são comuns na maioria dos
+aparelhos modernos: GPS, câmera e microfone.
+Os requisitos são mı́nimos e visam apenas garantir um uso básico e viável
+desses sensores:
+• GPS (localização): permitir que o usuário envie sua localização atual
+em uma conversa (por exemplo, um botão “Enviar localização” que
+envia um ponto no mapa ou endereço simplificado).
+
+4
+
+• Câmera: permitir tirar uma foto a partir do aplicativo e enviá-la
+diretamente em uma conversa (uso da câmera como fonte de imagem,
+não apenas seleção da galeria).
+• Microfone: permitir o envio de uma mensagem de voz simples (gravação
+de áudio curta, com um botão para gravar/parar e envio do arquivo de
+áudio na conversa).
+A implementação pode ser básica, desde que funcional e integrada à interface de chat.
+
+Requisitos Especiais
+Os dois requisitos a seguir são especiais e valerão sozinhos 20 pontos no
+total:
+13. Mensagens fixadas: (3 pontos) permitir que o usuário selecione
+uma mensagem importante em uma conversa e a fixe no topo do chat.
+• Implementação: adicionar um ı́cone de fixar, criar uma área no
+topo do chat para exibir a mensagem fixada, e permitir que o
+usuário desfaça a ação.
+14. Filtro de mensagens por palavra-chave: (5 pontos) adicionar um
+campo de busca dentro da conversa para filtrar e destacar mensagens
+que contenham uma determinada palavra ou expressão.
+• Implementação: inserir uma barra de busca, filtrar a lista de mensagens conforme o usuário digita, e destacar o texto encontrado.
+15. Uso de sensores: (12 pontos) os sensores de GPS, câmera e microfone devem ser adicionados
+
+5
+
+Penalidades
+Grupos que não apresentarem o trabalho no dia 19/03/2026 poderão apresentar na sexta-feira 20/03. Nesse caso, a nota sofrerá redução para 2/3
+(66%) do valor total, condicionado à apresentação tardia na sexta-feira. Isso
+significa que se não apresentarem na sexta-feira também, ficarão com zero.
+
+Entregáveis
+• Plano de desenvolvimento com cronograma diário (no Teams).
+• Código-fonte documentado em repositório (ex: GitHub).
+• APK instalável para testes (no GitHub).
+• Relatório explicativo sobre decisões tomadas, papéis dos membros, principais dificuldades enfrentadas e breve descrição de como GPS, câmera
+e microfone foram utilizados.
+• Vı́deo demonstrativo curto (3–5 minutos).
+• Slides da apresentação.
+
+Apresentação
+• No máximo 7 slides.
+• Imagens, textos e códigos devem ser visı́veis.
+– Não use fontes pequenas demais para serem vistas ou imagens
+borradas.
+– Não use captura de tela para código. Copie e cole o código que
+deseja frisar.
+• Apresentadores devem usar tom adequado para serem ouvidos por todos na sala. Devem ser cordiais com membros do grupo e com outros
+colegas.
+6
+
+• Dois slides comentando:
+– Sobre as dificuldades encontradas.
+– Quais são as observações sobre as LLMs usadas: nomes das LLMs,
+alguns exemplos mais importantes de prompts, opinião geral do
+grupo sobre o uso das LLMs, etc.
+• Pelo menos duas pessoas do grupo devem mostrar o aplicativo funcionando no smartphone, incluindo o uso básico de GPS, câmera e
+microfone (por exemplo, envio de localização, foto e áudio).
+• Se possı́vel, quero que executem o aplicativo usando o emulador ao
+final da apresentação. Podem também espelhar a tela do celular em
+seu computador e projetar para que a turma toda veja.
+
+Referências Úteis
+Tutoriais em Vı́deo
+O chat deve se parecer mais com o primeiro vı́deo a seguir, mas o segundo
+também possui elementos interessantes.
+1. Chat App with Firebase Series
+https://www.youtube.com/playlist?list=PLgpnJydBcnPB-aQ6
+P5hWCHBjy8LWZ9x4w
+2. Build Chat App
+https://www.youtube.com/playlist?list=PL0pXjGnY7PORzzj
+4Kd5Yj-VGPv_kPFgxX
+
+Outros Recursos
+• Android Chat Messenger
+
+7
+
+https://www.youtube.com/playlist?list=PLJ0AcghBBWSiOPi
+xbIkwazrAUaYXtinBP
+• Firebase Chat Android Tutorial
+https://www.youtube.com/playlist?list=PLJ0AcghBBWSjTa_
+4vWS8u_-0dvTgFyQis
+

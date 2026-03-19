@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
-// import kotlinx.coroutines.tasks.await
 import com.example.parachat.auth.FirebaseAuthRepository
 import com.example.parachat.data.firebase.user.FirebaseUserRepository
 import com.example.parachat.domain.User
@@ -70,85 +69,67 @@ class SignupViewModel : ViewModel() {
     }
 
     private fun signup () {
+        if (username.isBlank()) {
+            sendError("O nome de usuário não pode estar vazio")
+            return
+        }
+
+        if (email.isBlank()) {
+            sendError("O email não pode estar vazio")
+            return
+        }
+
+        if (password.length < 6) {
+            sendError("A senha deve ter pelo menos 6 caracteres")
+            return
+        }
+
         loading = true
         viewModelScope.launch {
             try {
-                if (username.isBlank()) {
-                    _uiEvent.send(UIEvent.ShowSnackBar(
-                        message = "O nome de usuário não pode estar vazio"
-                    ))
-                    return@launch
-                }
-
-                if (email.isBlank()) {
-                    _uiEvent.send(UIEvent.ShowSnackBar(
-                        message = "O email não pode estar vazio"
-                    ))
-                    return@launch
-                }
-
-                if (password.isBlank()) {
-                    _uiEvent.send(UIEvent.ShowSnackBar(
-                        message = "A senha não pode estar vazia"
-                    ))
-                    return@launch
-                }
-
                 val result = authRepository.signUp(email, password)
                 val userId = result.user?.uid
 
                 if (userId == null) {
-                    _uiEvent.send(UIEvent.ShowSnackBar(
-                        message = "Erro: Usuário criado, mas ID não encontrado."
-                    ))
+                    sendError("Erro: Usuário criado, mas ID não encontrado.")
                     return@launch
                 }
 
-                // Save profile asynchronously (with timeout) so navigation isn't blocked
+                // Save profile
                 launch {
                     try {
                         withTimeout(15_000L) {
                             saveUserProfile(userId, email, username)
                         }
-                    } catch (e: TimeoutCancellationException) {
-                        Log.w("SignupViewModel", "Profile save timed out", e)
-                        _uiEvent.send(UIEvent.ShowSnackBar(
-                            message = "Aviso: O perfil está lento para salvar. Verifique sua conexão."
-                        ))
                     } catch (e: Exception) {
                         Log.e("SignupViewModel", "Profile save failed", e)
-                        _uiEvent.send(UIEvent.ShowSnackBar(
-                            message = "Aviso: Não foi possível salvar o perfil. O cadastro foi concluído."
-                        ))
                     }
                 }
 
                 _uiEvent.send(UIEvent.Navigate(HomeRoute))
             } catch (e: Exception) {
                 Log.e("SignupViewModel", "Signup failed", e)
-                _uiEvent.send(UIEvent.ShowSnackBar(
-                    message = e.message ?: "Algo deu errado, tente novamente."
-                ))
+                sendError(e.message ?: "Algo deu errado, tente novamente.")
             } finally {
                 loading = false
             }
         }
     }
 
-    private suspend fun saveUserProfile(userId: String, email: String, username: String) {
-        try {
-            val user = User(
-                id = userId,
-                email = email,
-                username = username,
-                status = UserStatus.ONLINE.name,
-                lastSeen = System.currentTimeMillis()
-            )
-            userRepository.insert(user)
-            Log.d("SignupViewModel", "User saved to Firebase: $username")
-        } catch (e: Exception) {
-            Log.e("SignupViewModel", "Error saving user profile", e)
-            throw e // Re-throw to be caught by the caller or timeout
+    private fun sendError(message: String) {
+        viewModelScope.launch {
+            _uiEvent.send(UIEvent.ShowSnackBar(message = message))
         }
+    }
+
+    private suspend fun saveUserProfile(userId: String, email: String, username: String) {
+        val user = User(
+            id = userId,
+            email = email,
+            username = username,
+            status = UserStatus.ONLINE.name,
+            lastSeen = System.currentTimeMillis()
+        )
+        userRepository.insert(user)
     }
 }

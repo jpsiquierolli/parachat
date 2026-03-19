@@ -10,6 +10,7 @@ import com.example.parachat.ui.feature.signup.SignupScreen
 import com.example.parachat.ui.feature.home.HomeScreen
 import com.example.parachat.ui.feature.chat.ChatScreen
 import com.example.parachat.ui.feature.profile.ProfileScreen
+import com.example.parachat.ui.feature.group.CreateGroupScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -25,7 +26,10 @@ object HomeRoute
 object ProfileRoute
 
 @Serializable
-data class ChatRoute(val userId: String)
+object CreateGroupRoute
+
+@Serializable
+data class ChatRoute(val userId: String? = null, val groupId: String? = null)
 
 @Composable
 fun ParachatNavHost() {
@@ -65,7 +69,12 @@ fun ParachatNavHost() {
         composable<HomeRoute> {
             HomeScreen(
                 onUserClick = { userId ->
-                    navController.navigate(ChatRoute(userId)) {
+                    navController.navigate(ChatRoute(userId = userId)) {
+                        launchSingleTop = true
+                    }
+                },
+                onGroupClick = { groupId ->
+                    navController.navigate(ChatRoute(groupId = groupId)) {
                         launchSingleTop = true
                     }
                 },
@@ -74,9 +83,12 @@ fun ParachatNavHost() {
                         launchSingleTop = true
                     }
                 },
+                onAddGroupClick = {
+                    navController.navigate(CreateGroupRoute)
+                },
                 onSignOut = {
                     navController.navigate(LoginRoute) {
-                        popUpTo(LoginRoute) { inclusive = true }
+                        popUpTo(HomeRoute) { inclusive = true }
                     }
                 }
             )
@@ -90,10 +102,22 @@ fun ParachatNavHost() {
             )
         }
 
+        composable<CreateGroupRoute> {
+            CreateGroupScreen(
+                onBackClick = { navController.popBackStack() },
+                onGroupCreated = { groupId ->
+                    navController.navigate(ChatRoute(groupId = groupId)) {
+                        popUpTo(CreateGroupRoute) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable<ChatRoute> { backStackEntry ->
             val route: ChatRoute = backStackEntry.toRoute()
             ChatScreen(
                 userId = route.userId,
+                groupId = route.groupId,
                 onBackClick = {
                     navController.popBackStack()
                 }

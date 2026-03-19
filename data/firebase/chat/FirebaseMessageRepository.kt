@@ -4,28 +4,18 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import com.example.parachat.domain.chat.Conversation
 import com.example.parachat.domain.chat.Message
 import com.example.parachat.domain.chat.MessageRepository
 import com.example.parachat.domain.chat.MessageStatus
 import com.example.parachat.domain.chat.MessageType
-import com.example.parachat.util.CryptoUtils
-import com.example.parachat.data.room.chat.MessageDao
-import com.example.parachat.data.room.chat.toEntity
-import com.example.parachat.data.room.chat.toDomain
 
 class FirebaseMessageRepository(
-    private val database: FirebaseDatabase,
-    private val messageDao: MessageDao
+    private val database: FirebaseDatabase
 ) : MessageRepository {
 
     private val messagesRef = database.getReference("messages")
@@ -33,40 +23,22 @@ class FirebaseMessageRepository(
     private val pinnedRef = database.getReference("pinnedMessages")
     private val pinnedGroupsRef = database.getReference("pinnedGroupMessages")
     private val conversationsRef = database.getReference("conversations")
-    
-    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override suspend fun sendMessage(message: Message) {
-        val encryptedContent = if (message.type == MessageType.TEXT) {
-            CryptoUtils.encrypt(message.content)
-        } else {
-            message.content
-        }
-        val secureMessage = message.copy(content = encryptedContent)
-
-        if (secureMessage.groupId != null) {
-            val newMessageRef = groupMessagesRef.child(secureMessage.groupId).push()
+        if (message.groupId != null) {
+            val newMessageRef = groupMessagesRef.child(message.groupId).push()
             val messageId = newMessageRef.key ?: return
-            val payload = secureMessage.copy(id = messageId)
+            val payload = message.copy(id = messageId)
             newMessageRef.setValue(payload).await()
-            messageDao.insert(payload.toEntity())
+            // In a real app, you'd update conversation for all group members
         } else {
-            val conversationId = conversationId(secureMessage.senderId, secureMessage.receiverId)
+            val conversationId = conversationId(message.senderId, message.receiverId)
             val newMessageRef = messagesRef.child(conversationId).push()
             val messageId = newMessageRef.key ?: return
-            val payload = secureMessage.copy(id = messageId)
+            val payload = message.copy(id = messageId)
             newMessageRef.setValue(payload).await()
-            messageDao.insert(payload.toEntity())
-            updateConversationForSender(secureMessage.senderId, secureMessage.receiverId, payload)
-            updateConversationForReceiver(secureMessage.senderId, secureMessage.receiverId, payload)
-        }
-    }
-
-    private fun decryptMessage(message: Message): Message {
-        return if (message.type == MessageType.TEXT) {
-            message.copy(content = CryptoUtils.decrypt(message.content))
-        } else {
-            message
+            updateConversationForSender(payload)
+            updateConversationForReceiver(payload)
         }
     }
 
@@ -75,10 +47,8 @@ class FirebaseMessageRepository(
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val messages = snapshot.children.mapNotNull { it.getValue(Message::class.java) }
-                repositoryScope.launch {
-                    messageDao.insertAll(messages.map { it.toEntity() })
-                }
-                trySend(messages.map { decryptMessage(it) }.sortedBy { it.timestamp })
+                    .sortedBy { it.timestamp }
+                trySend(messages)
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -93,10 +63,8 @@ class FirebaseMessageRepository(
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val messages = snapshot.children.mapNotNull { it.getValue(Message::class.java) }
-                repositoryScope.launch {
-                    messageDao.insertAll(messages.map { it.toEntity() })
-                }
-                trySend(messages.map { decryptMessage(it) }.sortedBy { it.timestamp })
+                    .sortedBy { it.timestamp }
+                trySend(messages)
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -107,17 +75,10 @@ class FirebaseMessageRepository(
         awaitClose { groupMessagesRef.child(groupId).removeEventListener(listener) }
     }
 
-    fun getLocalMessages(userId: String, otherUserId: String): Flow<List<Message>> {
-        return messageDao.getMessagesForChat(userId, otherUserId).map { entities ->
-            entities.map { decryptMessage(it.toDomain()) }
-        }
-    }
-
     override fun observeConversations(currentUserId: String): Flow<List<Conversation>> = callbackFlow {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val conversations = snapshot.children.mapNotNull { it.getValue(Conversation::class.java) }
-                    .map { it.copy(lastMessagePreview = CryptoUtils.decrypt(it.lastMessagePreview)) }
                     .sortedByDescending { it.lastMessageTimestamp }
                 trySend(conversations)
             }
@@ -132,8 +93,7 @@ class FirebaseMessageRepository(
 
     override suspend fun pinMessage(currentUserId: String, otherUserId: String, message: Message) {
         val conversationId = conversationId(currentUserId, otherUserId)
-        val toPin = if (message.type == MessageType.TEXT) message.copy(content = CryptoUtils.encrypt(message.content)) else message
-        pinnedRef.child(conversationId).setValue(toPin).await()
+        pinnedRef.child(conversationId).setValue(message).await()
     }
 
     override suspend fun unpinMessage(currentUserId: String, otherUserId: String) {
@@ -145,8 +105,7 @@ class FirebaseMessageRepository(
         val conversationId = conversationId(currentUserId, otherUserId)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val msg = snapshot.getValue(Message::class.java)
-                trySend(msg?.let { decryptMessage(it) })
+                trySend(snapshot.getValue(Message::class.java))
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -158,8 +117,7 @@ class FirebaseMessageRepository(
     }
 
     override suspend fun pinGroupMessage(groupId: String, message: Message) {
-        val toPin = if (message.type == MessageType.TEXT) message.copy(content = CryptoUtils.encrypt(message.content)) else message
-        pinnedGroupsRef.child(groupId).setValue(toPin).await()
+        pinnedGroupsRef.child(groupId).setValue(message).await()
     }
 
     override suspend fun unpinGroupMessage(groupId: String) {
@@ -169,8 +127,7 @@ class FirebaseMessageRepository(
     override fun observePinnedGroupMessage(groupId: String): Flow<Message?> = callbackFlow {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val msg = snapshot.getValue(Message::class.java)
-                trySend(msg?.let { decryptMessage(it) })
+                trySend(snapshot.getValue(Message::class.java))
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -192,16 +149,16 @@ class FirebaseMessageRepository(
             }
     }
 
-    private suspend fun updateConversationForSender(senderId: String, receiverId: String, message: Message) {
-        val conversation = buildConversation(message, otherUserId = receiverId, unread = 0)
-        conversationsRef.child(senderId).child(receiverId).setValue(conversation).await()
+    private suspend fun updateConversationForSender(message: Message) {
+        val conversation = buildConversation(message, otherUserId = message.receiverId, unread = 0)
+        conversationsRef.child(message.senderId).child(message.receiverId).setValue(conversation).await()
     }
 
-    private suspend fun updateConversationForReceiver(senderId: String, receiverId: String, message: Message) {
-        val ref = conversationsRef.child(receiverId).child(senderId)
+    private suspend fun updateConversationForReceiver(message: Message) {
+        val ref = conversationsRef.child(message.receiverId).child(message.senderId)
         val snapshot = ref.get().await()
         val currentUnread = snapshot.child("unreadCount").getValue(Int::class.java) ?: 0
-        val conversation = buildConversation(message, otherUserId = senderId, unread = currentUnread + 1)
+        val conversation = buildConversation(message, otherUserId = message.senderId, unread = currentUnread + 1)
         ref.setValue(conversation).await()
     }
 
@@ -210,7 +167,7 @@ class FirebaseMessageRepository(
             id = conversationId(message.senderId, message.receiverId),
             otherUserId = otherUserId,
             title = otherUserId,
-            lastMessagePreview = if (message.type == MessageType.TEXT) message.content else previewFor(message),
+            lastMessagePreview = previewFor(message),
             lastMessageTimestamp = message.timestamp,
             unreadCount = unread,
             participants = listOf(message.senderId, message.receiverId)
@@ -219,11 +176,11 @@ class FirebaseMessageRepository(
 
     private fun previewFor(message: Message): String = when (message.type) {
         MessageType.TEXT -> message.content
-        MessageType.IMAGE -> "[Imagem]"
-        MessageType.VIDEO -> "[Vídeo]"
-        MessageType.AUDIO -> "[Áudio]"
-        MessageType.LOCATION -> "[Localização]"
-        MessageType.FILE -> message.content.ifBlank { "[Arquivo]" }
+        MessageType.IMAGE -> "[Image]"
+        MessageType.VIDEO -> "[Video]"
+        MessageType.AUDIO -> "[Audio]"
+        MessageType.LOCATION -> "[Location]"
+        MessageType.FILE -> message.content.ifBlank { "[File]" }
     }
 
     private fun conversationId(userA: String, userB: String): String = listOf(userA, userB).sorted().joinToString(separator = "_")

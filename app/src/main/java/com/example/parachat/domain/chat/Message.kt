@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 data class Message(
     val id: String = "",
     val senderId: String = "",
-    val receiverId: String = "",
+    val receiverId: String = "", // Can be userId or groupId
+    val groupId: String? = null,
     val content: String = "",
     val mediaUrl: String? = null,
     val mediaThumbnailUrl: String? = null,

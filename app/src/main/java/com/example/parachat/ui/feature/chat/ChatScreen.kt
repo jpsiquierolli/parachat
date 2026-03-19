@@ -13,68 +13,43 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.google.android.gms.location.LocationServices
 import com.example.parachat.domain.chat.Message
+import com.example.parachat.domain.chat.MessageStatus
 import com.example.parachat.domain.chat.MessageType
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
-    userId: String,
+    userId: String? = null,
+    groupId: String? = null,
     onBackClick: () -> Unit
 ) {
     val viewModel = viewModel<ChatViewModel>()
@@ -96,8 +71,6 @@ fun ChatScreen(
     ) { isGranted ->
         if (isGranted) {
             Toast.makeText(context, "Permissão de áudio concedida. Tente gravar novamente.", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(context, "Permissão de áudio negada", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -133,8 +106,9 @@ fun ChatScreen(
              getCurrentLocation(context) { lat, long ->
                  val message = Message(
                      senderId = currentUserId,
-                     receiverId = userId,
-                     content = "Lat: $lat, Long: $long",
+                     receiverId = userId ?: "",
+                     groupId = groupId,
+                     content = "Localização enviada",
                      type = MessageType.LOCATION,
                      latitude = lat,
                      longitude = long,
@@ -142,8 +116,6 @@ fun ChatScreen(
                  )
                  viewModel.sendLocationMessage(message)
              }
-        } else {
-            Toast.makeText(context, "Permissão de localização negada", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -194,7 +166,6 @@ fun ChatScreen(
             audioFile?.let { file ->
                 val bytes = file.readBytes()
                 viewModel.sendMedia(bytes, "mp3", "audio/mpeg", MessageType.AUDIO)
-                Toast.makeText(context, "Áudio enviado!", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -226,7 +197,7 @@ fun ChatScreen(
                 )
             } else {
                 TopAppBar(
-                    title = { Text(text = "Chat") },
+                    title = { Text(text = if (groupId != null) "Grupo" else "Chat") },
                     navigationIcon = {
                         IconButton(onClick = onBackClick) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -259,8 +230,9 @@ fun ChatScreen(
                                  getCurrentLocation(context) { lat, long ->
                                      val message = Message(
                                          senderId = currentUserId,
-                                         receiverId = userId,
-                                         content = "Lat: $lat, Long: $long",
+                                         receiverId = userId ?: "",
+                                         groupId = groupId,
+                                         content = "Localização",
                                          type = MessageType.LOCATION,
                                          latitude = lat,
                                          longitude = long,
@@ -279,19 +251,18 @@ fun ChatScreen(
                     )
                 }
 
-                // Recording Indicator / Input Area
                 if (isRecording) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.Red.copy(alpha = 0.1f))
+                            .background(MaterialTheme.colorScheme.errorContainer)
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text("Gravando áudio... ", color = Color.Red)
+                        Text("Gravando áudio... ", color = MaterialTheme.colorScheme.onErrorContainer)
                         IconButton(onClick = { stopRecording() }) {
-                            Icon(Icons.Default.Stop, contentDescription = "Parar", tint = Color.Red)
+                            Icon(Icons.Default.Stop, contentDescription = "Parar", tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 } else {
@@ -330,24 +301,54 @@ fun ChatScreen(
                 )
             }
 
+            val groupedMessages = remember(messages) {
+                messages.groupBy { 
+                    SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it.timestamp))
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .padding(8.dp),
                 reverseLayout = true
             ) {
-                items(messages.reversed()) { message ->
-                    MessageItem(
-                        message = message,
-                        isCurrentUser = message.senderId == currentUserId,
-                        highlight = searchQuery,
-                        onLongClick = {
-                            viewModel.pinMessage(message)
-                            Toast.makeText(context, "Mensagem fixada!", Toast.LENGTH_SHORT).show()
-                        }
-                    )
+                val dates = groupedMessages.keys.toList().sortedDescending()
+                dates.forEach { date ->
+                    val dayMessages = groupedMessages[date] ?: emptyList()
+                    items(dayMessages.reversed()) { message ->
+                        MessageItem(
+                            message = message,
+                            isCurrentUser = message.senderId == currentUserId,
+                            highlight = searchQuery,
+                            onLongClick = {
+                                viewModel.pinMessage(message)
+                                Toast.makeText(context, "Mensagem fixada!", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
+                    item {
+                        DateHeader(date)
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun DateHeader(date: String) {
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(
+                text = date,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -388,51 +389,98 @@ fun MessageItem(
     highlight: String = "",
     onLongClick: () -> Unit = {}
 ) {
+    val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.timestamp))
+    
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
         contentAlignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
     ) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(
-                    if (isCurrentUser) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant
-                )
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onLongPress = { onLongClick() }
+        Column(horizontalAlignment = if (isCurrentUser) Alignment.End else Alignment.Start) {
+             if (!isCurrentUser && message.groupId != null) {
+                 Text(
+                     text = message.senderId,
+                     style = MaterialTheme.typography.labelSmall,
+                     modifier = Modifier.padding(start = 8.dp, bottom = 2.dp),
+                     color = MaterialTheme.colorScheme.primary
+                 )
+             }
+             Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(
+                        topStart = 12.dp,
+                        topEnd = 12.dp,
+                        bottomStart = if (isCurrentUser) 12.dp else 0.dp,
+                        bottomEnd = if (isCurrentUser) 0.dp else 12.dp
+                    ))
+                    .background(
+                        if (isCurrentUser) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceVariant
                     )
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onLongPress = { onLongClick() }
+                        )
+                    }
+                    .padding(8.dp)
+                    .widthIn(max = 280.dp)
+            ) {
+                Column {
+                    if (message.content.isNotBlank()) {
+                         Text(
+                            text = highlightedText(message.content, highlight),
+                            color = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    if (message.type == MessageType.IMAGE && message.mediaUrl != null) {
+                        AsyncImage(
+                            model = message.mediaUrl,
+                            contentDescription = "Imagem",
+                            modifier = Modifier
+                                .padding(top = 4.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    } else if (message.type == MessageType.LOCATION) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp), tint = if (isCurrentUser) Color.White else Color.Unspecified)
+                            Text(" Localização", style = MaterialTheme.typography.bodySmall, color = if (isCurrentUser) Color.White else Color.Unspecified)
+                        }
+                    } else if (message.type == MessageType.AUDIO) {
+                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                             Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp), tint = if (isCurrentUser) Color.White else Color.Unspecified)
+                             Text(" Áudio", style = MaterialTheme.typography.bodySmall, color = if (isCurrentUser) Color.White else Color.Unspecified)
+                         }
+                    }
+
+                    Row(
+                        modifier = Modifier.align(Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = time,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = (if (isCurrentUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.7f)
+                        )
+                        if (isCurrentUser) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            val statusIcon = when (message.status) {
+                                MessageStatus.SENT -> Icons.Default.Check
+                                MessageStatus.DELIVERED -> Icons.Default.DoneAll
+                                MessageStatus.READ -> Icons.Default.DoneAll
+                            }
+                            val statusTint = if (message.status == MessageStatus.READ) Color.Cyan else Color.White.copy(alpha = 0.7f)
+                            Icon(
+                                imageVector = statusIcon,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = statusTint
+                            )
+                        }
+                    }
                 }
-                .padding(8.dp)
-        ) {
-            Text(
-                text = highlightedText(message.content, highlight),
-                color = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            if (message.type == MessageType.IMAGE && message.mediaUrl != null) {
-                AsyncImage(
-                    model = message.mediaUrl,
-                    contentDescription = "Imagem enviada",
-                    modifier = Modifier
-                        .padding(top = 4.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                )
-            } else if (message.type == MessageType.LOCATION) {
-                Text(
-                     text = "📍 Localização",
-                     color = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else if (message.type == MessageType.AUDIO) {
-                 Row(verticalAlignment = Alignment.CenterVertically) {
-                     Icon(Icons.Default.Mic, contentDescription = null, tint = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
-                     Text(" Áudio", color = if (isCurrentUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
-                 }
             }
         }
     }
@@ -446,7 +494,6 @@ fun MediaBottomSheet(
     onLocationClick: () -> Unit,
     onAudioClick: () -> Unit
 ) {
-    // A simple row of options since standard BottomSheet needs more setup in M3
    Row(
        modifier = Modifier
            .fillMaxWidth()
@@ -496,8 +543,6 @@ private fun getCurrentLocation(context: Context, onLocation: (Double, Double) ->
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
             if (location != null) {
                 onLocation(location.latitude, location.longitude)
-            } else {
-                 Toast.makeText(context, "Localização não disponível", Toast.LENGTH_SHORT).show()
             }
         }
     } catch (e: SecurityException) {
@@ -519,7 +564,7 @@ private fun highlightedText(text: String, query: String): androidx.compose.ui.te
                 break
             }
             append(text.substring(start, index))
-            pushStyle(androidx.compose.ui.text.SpanStyle(background = MaterialTheme.colorScheme.tertiaryContainer))
+            pushStyle(androidx.compose.ui.text.SpanStyle(background = Color.Yellow.copy(alpha = 0.5f), fontWeight = FontWeight.Bold))
             append(text.substring(index, index + target.length))
             pop()
             start = index + target.length

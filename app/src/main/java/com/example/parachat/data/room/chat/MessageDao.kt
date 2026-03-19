@@ -17,7 +17,9 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE (senderId = :userId AND receiverId = :otherUserId) OR (senderId = :otherUserId AND receiverId = :userId) ORDER BY timestamp ASC")
     fun getMessagesForChat(userId: String, otherUserId: String): Flow<List<MessageEntity>>
 
+    @Query("SELECT * FROM messages WHERE groupId = :groupId ORDER BY timestamp ASC")
+    fun getMessagesForGroup(groupId: String): Flow<List<MessageEntity>>
+
     @Query("SELECT * FROM messages ORDER BY timestamp DESC")
     fun getAllMessages(): Flow<List<MessageEntity>>
 }
-

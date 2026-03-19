@@ -1,129 +1,159 @@
 package com.example.parachat.ui.feature.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContactPhone
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.parachat.domain.User
-import com.example.parachat.ui.theme.ParachatTheme
-
-@Composable
-fun HomeScreen(
-    onUserClick: (String) -> Unit,
-    onProfileClick: () -> Unit,
-    onSignOut: () -> Unit
-) {
-    val viewModel = viewModel<HomeViewModel>()
-    val users by viewModel.users.collectAsState()
-    val currentUser by viewModel.currentUser.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-
-    HomeContent(
-        users = users,
-        currentUser = currentUser,
-        searchQuery = searchQuery,
-        onSearchQueryChange = viewModel::onSearchQueryChange,
-        onUserClick = onUserClick,
-        onProfileClick = onProfileClick,
-        onSignOut = {
-            viewModel.signOut()
-            onSignOut()
-        }
-    )
-}
+import com.example.parachat.domain.chat.Group
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeContent(
-    users: List<User>,
-    currentUser: User?,
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
+fun HomeScreen(
     onUserClick: (String) -> Unit,
+    onGroupClick: (String) -> Unit,
     onProfileClick: () -> Unit,
+    onAddGroupClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
+    val viewModel = viewModel<HomeViewModel>()
+    val contacts by viewModel.contacts.collectAsState()
+    val groups by viewModel.groups.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val error by viewModel.error.collectAsState()
+    
+    val context = LocalContext.current
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var showAddContactDialog by remember { mutableStateOf(false) }
+
+    val contactPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.importDeviceContacts(context)
+            Toast.makeText(context, "Contatos importados!", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Permissão negada", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(error) {
+        error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.clearError()
+        }
+    }
+
+    if (showAddContactDialog) {
+        AddContactDialog(
+            onDismiss = { showAddContactDialog = false },
+            onAdd = { email ->
+                viewModel.addContactByEmail(email)
+                showAddContactDialog = false
+            },
+            onImport = {
+                showAddContactDialog = false
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+                    viewModel.importDeviceContacts(context)
+                } else {
+                    contactPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(text = "Parachat") },
-                actions = {
-                    IconButton(onClick = onProfileClick) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
+            Column {
+                TopAppBar(
+                    title = { Text(text = "Parachat") },
+                    actions = {
+                        IconButton(onClick = onProfileClick) {
+                            Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
+                        }
+                        IconButton(onClick = onSignOut) {
+                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sair")
+                        }
                     }
-                    IconButton(onClick = onSignOut) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sair")
+                )
+                TabRow(selectedTabIndex = selectedTab) {
+                    Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }) {
+                        Text("Contatos", modifier = Modifier.padding(16.dp))
+                    }
+                    Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }) {
+                        Text("Grupos", modifier = Modifier.padding(16.dp))
                     }
                 }
-            )
+            }
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = {
+                if (selectedTab == 0) showAddContactDialog = true
+                else onAddGroupClick()
+            }) {
+                Icon(
+                    imageVector = if (selectedTab == 0) Icons.Default.PersonAdd else Icons.Default.Add,
+                    contentDescription = if (selectedTab == 0) "Adicionar Contato" else "Criar Grupo"
+                )
+            }
         }
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues)) {
-            if (currentUser != null) {
-                Text(
-                    text = "Logado como: ${currentUser.username}",
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = onSearchQueryChange,
+                onValueChange = viewModel::onSearchQueryChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                placeholder = { Text("Buscar usuários...") },
+                    .padding(16.dp),
+                placeholder = { Text(if (selectedTab == 0) "Buscar contatos..." else "Buscar grupos...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
                 singleLine = true
             )
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                if (users.isEmpty()) {
-                    item {
-                        Text(
-                            text = "Nenhum contato encontrado. Crie outra conta ou peça para alguém entrar.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                if (selectedTab == 0) {
+                    items(contacts) { user ->
+                        HomeItem(
+                            title = user.username.ifBlank { "Sem nome" },
+                            subtitle = user.email,
+                            icon = Icons.Default.Person,
+                            onClick = { onUserClick(user.id) }
                         )
                     }
-                }
-                items(users) { user ->
-                    UserItem(user = user, onClick = { onUserClick(user.id) })
+                } else {
+                    items(groups) { group ->
+                        HomeItem(
+                            title = group.name,
+                            subtitle = "${group.members.size} membros",
+                            icon = Icons.Default.Group,
+                            onClick = { onGroupClick(group.id) }
+                        )
+                    }
                 }
             }
         }
@@ -131,7 +161,45 @@ fun HomeContent(
 }
 
 @Composable
-fun UserItem(user: User, onClick: () -> Unit) {
+fun AddContactDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit, onImport: () -> Unit) {
+    var email by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Adicionar Contato") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("E-mail do contato") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                TextButton(
+                    onClick = onImport,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.ContactPhone, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Importar da Agenda")
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onAdd(email) }, enabled = email.isNotBlank()) {
+                Text("Adicionar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+@Composable
+fun HomeItem(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -145,43 +213,13 @@ fun UserItem(user: User, onClick: () -> Unit) {
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
+                Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(24.dp))
             }
         }
         Spacer(modifier = Modifier.size(16.dp))
         Column {
-            Text(
-                text = user.username.ifBlank { "Sem nome" },
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = user.email,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(text = title, style = MaterialTheme.typography.titleMedium)
+            Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-}
-
-@Preview
-@Composable
-fun HomeContentPreview() {
-    ParachatTheme {
-        HomeContent(
-            users = listOf(
-                User(id = "1", username = "Alice", email = "alice@example.com"),
-                User(id = "2", username = "Bob", email = "bob@example.com")
-            ),
-            currentUser = User(id = "3", username = "Me", email = "me@example.com"),
-            searchQuery = "",
-            onSearchQueryChange = {},
-            onUserClick = {},
-            onProfileClick = {},
-            onSignOut = {}
-        )
     }
 }
