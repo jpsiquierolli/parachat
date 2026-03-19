@@ -25,6 +25,7 @@ class FirebaseUserRepository(
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
     private val usersRef = database.getReference("users")
+    private val contactsRef = database.getReference("contacts")
     private val userDao = localDb.userDao
 
     override suspend fun insert(user: User) {
@@ -168,6 +169,32 @@ class FirebaseUserRepository(
         }
         usersRef.child(userId).addValueEventListener(listener)
         awaitClose { usersRef.child(userId).removeEventListener(listener) }
+    }
+
+    override fun observeContactIds(ownerId: String): Flow<Set<String>> = callbackFlow {
+        val ownerContactsRef = contactsRef.child(ownerId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val ids = snapshot.children.mapNotNull { it.key }.toSet()
+                trySend(ids)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+        ownerContactsRef.addValueEventListener(listener)
+        awaitClose { ownerContactsRef.removeEventListener(listener) }
+    }
+
+    override suspend fun addContact(ownerId: String, contactUserId: String) {
+        if (ownerId.isBlank() || contactUserId.isBlank() || ownerId == contactUserId) return
+        contactsRef.child(ownerId).child(contactUserId).setValue(true).await()
+    }
+
+    override suspend fun removeContact(ownerId: String, contactUserId: String) {
+        if (ownerId.isBlank() || contactUserId.isBlank()) return
+        contactsRef.child(ownerId).child(contactUserId).removeValue().await()
     }
 
     override suspend fun updateStatus(userId: String, status: UserStatus) {

@@ -36,6 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
@@ -138,9 +139,15 @@ fun ChatScreen(
             val bytes = readBytesFromUri(context, it)
             if (bytes != null) {
                 val mimeType = context.contentResolver.getType(it) ?: "image/jpeg"
-                val extension = if (mimeType.contains("video")) "mp4" else "jpg"
-                val type = if (mimeType.contains("video")) MessageType.VIDEO else MessageType.IMAGE
-                viewModel.sendMedia(bytes, extension, mimeType, type)
+                val extension = extensionFromMime(mimeType)
+                val type = when {
+                    mimeType.startsWith("image/") -> MessageType.IMAGE
+                    mimeType.startsWith("video/") -> MessageType.VIDEO
+                    mimeType.startsWith("audio/") -> MessageType.AUDIO
+                    else -> MessageType.FILE
+                }
+                val fileName = resolveFileName(context, it)
+                viewModel.sendMedia(bytes, extension, mimeType, type, fileName)
             }
         }
     }
@@ -153,6 +160,16 @@ fun ChatScreen(
             it.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
             val bytes = stream.toByteArray()
             viewModel.sendMedia(bytes, "jpg", "image/jpeg", MessageType.IMAGE)
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            cameraLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "Permissão de câmera negada", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -365,10 +382,16 @@ fun ChatScreen(
                     modifier = Modifier.fillMaxWidth().padding(8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    IconButton(onClick = { galleryLauncher.launch("image/*") }) {
-                        Icon(Icons.Default.Image, contentDescription = "Galeria")
+                    IconButton(onClick = { galleryLauncher.launch("*/*") }) {
+                        Icon(Icons.Default.AttachFile, contentDescription = "Arquivo")
                     }
-                    IconButton(onClick = { cameraLauncher.launch(null) }) {
+                    IconButton(onClick = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            cameraLauncher.launch(null)
+                        } else {
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    }) {
                         Icon(Icons.Default.CameraAlt, contentDescription = "Câmera")
                     }
                     IconButton(onClick = { 
@@ -493,7 +516,19 @@ fun MessageBubble(
                         )
                     }
                     MessageType.VIDEO -> {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.clickable {
+                                val url = message.mediaUrl.orEmpty()
+                                if (url.isNotBlank()) {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                        setDataAndType(Uri.parse(url), "video/*")
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            }
+                        ) {
                             AsyncImage(
                                 model = message.mediaUrl,
                                 contentDescription = null,
@@ -526,7 +561,24 @@ fun MessageBubble(
                     MessageType.AUDIO -> {
                         AudioMessagePlayer(message.mediaUrl)
                     }
-                    else -> Text(text = "[Mídia]")
+                    MessageType.FILE -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable {
+                                val url = message.mediaUrl.orEmpty()
+                                if (url.isNotBlank()) {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = message.content.ifBlank { "Arquivo" }, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.size(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.End)) {
@@ -633,6 +685,30 @@ private fun readBytesFromUri(context: Context, uri: Uri): ByteArray? {
     } catch (e: Exception) {
         null
     }
+}
+
+private fun resolveFileName(context: Context, uri: Uri): String {
+    return runCatching {
+        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0 && cursor.moveToFirst()) {
+                    cursor.getString(idx)
+                } else {
+                    null
+                }
+            }
+    }.getOrNull()?.takeIf { it.isNotBlank() } ?: (uri.lastPathSegment ?: "arquivo")
+}
+
+private fun extensionFromMime(mimeType: String): String {
+    return android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)?.ifBlank { null }
+        ?: when {
+            mimeType.startsWith("image/") -> "jpg"
+            mimeType.startsWith("video/") -> "mp4"
+            mimeType.startsWith("audio/") -> "m4a"
+            else -> "bin"
+        }
 }
 
 @SuppressLint("MissingPermission")

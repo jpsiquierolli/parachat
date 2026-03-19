@@ -134,7 +134,13 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun sendMedia(bytes: ByteArray, extension: String, mimeType: String, type: MessageType) {
+    fun sendMedia(
+        bytes: ByteArray,
+        extension: String,
+        mimeType: String,
+        type: MessageType,
+        fileName: String = ""
+    ) {
         viewModelScope.launch {
             try {
                 val url = storageRepository.uploadBytes(
@@ -147,7 +153,7 @@ class ChatViewModel @Inject constructor(
                 val message = Message(
                     senderId = currentUserId,
                     receiverId = chatUserId,
-                    content = "",
+                    content = fileName,
                     mediaUrl = url,
                     type = type,
                     timestamp = System.currentTimeMillis()
@@ -173,12 +179,14 @@ class ChatViewModel @Inject constructor(
 
     fun pinMessage(message: Message) {
         viewModelScope.launch {
+            _pinnedMessage.value = message
             messageRepository.pinMessage(currentUserId, chatUserId, message, isGroupChat)
         }
     }
 
     fun unpinMessage() {
         viewModelScope.launch {
+            _pinnedMessage.value = null
             messageRepository.unpinMessage(currentUserId, chatUserId, isGroupChat)
         }
     }

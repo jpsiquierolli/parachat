@@ -1,5 +1,11 @@
 package com.example.parachat.ui.feature.home
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.provider.ContactsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,9 +45,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.example.parachat.domain.User
@@ -60,17 +68,40 @@ fun HomeScreen(
     val viewModel = hiltViewModel<HomeViewModel>()
     val users by viewModel.users.collectAsState()
     val conversations by viewModel.conversations.collectAsState()
+    val contactIds by viewModel.contactIds.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
+    val context = LocalContext.current
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val (emails, names) = readDeviceContacts(context)
+            viewModel.importDeviceContacts(emails, names)
+        }
+    }
+
     HomeContent(
         users = users,
         conversations = conversations,
+        contactIds = contactIds,
         currentUser = currentUser,
         searchQuery = searchQuery,
         isLoading = isLoading,
         onSearchQueryChange = viewModel::onSearchQueryChange,
+        onToggleContact = { userId, isContact ->
+            if (isContact) viewModel.removeContact(userId) else viewModel.addContact(userId)
+        },
+        onImportContacts = {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+                val (emails, names) = readDeviceContacts(context)
+                viewModel.importDeviceContacts(emails, names)
+            } else {
+                contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+            }
+        },
         onUserClick = onUserClick,
         onCreateGroupClick = onCreateGroupClick,
         onProfileClick = onProfileClick,
@@ -86,10 +117,13 @@ fun HomeScreen(
 fun HomeContent(
     users: List<User>,
     conversations: List<Conversation>,
+    contactIds: Set<String>,
     currentUser: User?,
     searchQuery: String,
     isLoading: Boolean,
     onSearchQueryChange: (String) -> Unit,
+    onToggleContact: (String, Boolean) -> Unit,
+    onImportContacts: () -> Unit,
     onUserClick: (String, Boolean, String) -> Unit,
     onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
@@ -103,6 +137,9 @@ fun HomeContent(
             TopAppBar(
                 title = { Text(text = "Parachat") },
                 actions = {
+                    androidx.compose.material3.TextButton(onClick = onImportContacts) {
+                        Text("Importar")
+                    }
                     IconButton(onClick = onGroupsClick) {
                         Icon(Icons.Default.Group, contentDescription = "Grupos")
                     }
@@ -197,11 +234,16 @@ fun HomeContent(
                     } else {
                         LazyColumn(modifier = Modifier.weight(1f)) {
                             items(users) { user ->
-                                UserItem(user = user, onClick = { 
-                                    onUserClick(user.id, false, user.displayName())
-                                    onSearchQueryChange("")
-                                    showUserSearch = false
-                                })
+                                UserItem(
+                                    user = user,
+                                    isContact = contactIds.contains(user.id),
+                                    onClick = {
+                                        onUserClick(user.id, false, user.displayName())
+                                        onSearchQueryChange("")
+                                        showUserSearch = false
+                                    },
+                                    onToggleContact = { onToggleContact(user.id, contactIds.contains(user.id)) }
+                                )
                             }
                         }
                     }
@@ -319,7 +361,7 @@ fun ConversationItem(conversation: Conversation, photoUrl: String?, onClick: () 
 
 
 @Composable
-fun UserItem(user: User, onClick: () -> Unit) {
+fun UserItem(user: User, isContact: Boolean, onClick: () -> Unit, onToggleContact: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -363,7 +405,42 @@ fun UserItem(user: User, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Spacer(modifier = Modifier.weight(1f))
+        androidx.compose.material3.TextButton(onClick = onToggleContact) {
+            Text(if (isContact) "Remover" else "Adicionar")
+        }
     }
+}
+
+private fun readDeviceContacts(context: Context): Pair<List<String>, List<String>> {
+    val emails = mutableSetOf<String>()
+    val names = mutableSetOf<String>()
+
+    val emailCursor = context.contentResolver.query(
+        ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+        arrayOf(
+            ContactsContract.CommonDataKinds.Email.ADDRESS,
+            ContactsContract.CommonDataKinds.Email.DISPLAY_NAME
+        ),
+        null,
+        null,
+        null
+    )
+
+    emailCursor?.use { cursor ->
+        val addressIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS)
+        val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Email.DISPLAY_NAME)
+        while (cursor.moveToNext()) {
+            if (addressIdx >= 0) {
+                cursor.getString(addressIdx)?.trim()?.lowercase()?.takeIf { it.isNotBlank() }?.let { emails.add(it) }
+            }
+            if (nameIdx >= 0) {
+                cursor.getString(nameIdx)?.trim()?.lowercase()?.takeIf { it.isNotBlank() }?.let { names.add(it) }
+            }
+        }
+    }
+
+    return emails.toList() to names.toList()
 }
 
 @Preview
@@ -376,10 +453,13 @@ fun HomeContentPreview() {
                 User(id = "2", username = "Bob", email = "bob@example.com")
             ),
             conversations = emptyList(),
+            contactIds = emptySet(),
             currentUser = User(id = "3", username = "Me", email = "me@example.com"),
             searchQuery = "",
             isLoading = false,
             onSearchQueryChange = {},
+            onToggleContact = { _, _ -> },
+            onImportContacts = {},
             onUserClick = { _, _, _ -> },
             onCreateGroupClick = {},
             onProfileClick = {},

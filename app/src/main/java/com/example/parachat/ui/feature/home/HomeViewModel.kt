@@ -28,6 +28,9 @@ class HomeViewModel @Inject constructor(
     private val _users = MutableStateFlow<List<User>>(emptyList())
     val users = _users.asStateFlow()
 
+    private val _contactIds = MutableStateFlow<Set<String>>(emptySet())
+    val contactIds = _contactIds.asStateFlow()
+
     private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
     val conversations = _conversations.asStateFlow()
 
@@ -111,11 +114,15 @@ class HomeViewModel @Inject constructor(
                     android.util.Log.d("HomeViewModel", "Fetched all users: ${allUsers.size}, filtered: ${allUsersCache.size}")
                     _isLoading.value = false
                     updateConversationTitles()
-                    if (_searchQuery.value.isNotBlank()) {
-                         onSearchQueryChange(_searchQuery.value)
-                    } else {
-                         _users.value = allUsersCache
-                    }
+                    updateContactsList()
+                }
+            }
+
+            // Observe contacts
+            launch {
+                userRepository.observeContactIds(currentUserId).collect { ids ->
+                    _contactIds.value = ids
+                    updateContactsList()
                 }
             }
         }
@@ -123,12 +130,52 @@ class HomeViewModel @Inject constructor(
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
+        updateContactsList()
+    }
+
+    private fun updateContactsList() {
+        val query = _searchQuery.value.trim()
         if (query.isBlank()) {
-            _users.value = allUsersCache // Show all users when not searching
+            _users.value = allUsersCache.filter { user -> user.id in _contactIds.value }
         } else {
             _users.value = allUsersCache.filter {
-                it.displayName().contains(query, ignoreCase = true) || it.email.contains(query, ignoreCase = true)
+                it.displayName().contains(query, ignoreCase = true) ||
+                    it.username.orEmpty().contains(query, ignoreCase = true) ||
+                    it.email.contains(query, ignoreCase = true)
             }
+        }
+    }
+
+    fun addContact(userId: String) {
+        val currentUserId = authRepository.getCurrentUser()?.uid ?: return
+        viewModelScope.launch {
+            userRepository.addContact(currentUserId, userId)
+        }
+    }
+
+    fun removeContact(userId: String) {
+        val currentUserId = authRepository.getCurrentUser()?.uid ?: return
+        viewModelScope.launch {
+            userRepository.removeContact(currentUserId, userId)
+        }
+    }
+
+    fun importDeviceContacts(emails: List<String>, names: List<String>) {
+        val currentUserId = authRepository.getCurrentUser()?.uid ?: return
+        val normalizedEmails = emails.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet()
+        val normalizedNames = names.map { it.trim().lowercase() }.filter { it.isNotBlank() }.toSet()
+        if (normalizedEmails.isEmpty() && normalizedNames.isEmpty()) return
+
+        viewModelScope.launch {
+            allUsersCache
+                .filter { user ->
+                    val userEmail = user.email.trim().lowercase()
+                    val userName = user.username.orEmpty().trim().lowercase()
+                    userEmail in normalizedEmails || (userName.isNotBlank() && userName in normalizedNames)
+                }
+                .forEach { match ->
+                    userRepository.addContact(currentUserId, match.id)
+                }
         }
     }
 

@@ -9,9 +9,14 @@ import com.example.parachat.domain.UserStatus
 import com.example.parachat.domain.displayNameFromParts
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlin.coroutines.coroutineContext
 import javax.inject.Inject
 
 class SupabaseUserRepository @Inject constructor(
@@ -21,6 +26,7 @@ class SupabaseUserRepository @Inject constructor(
 
     private val userDao = localDb.userDao
     private val usersTable = "users"
+    private val contactsTable = "contacts"
 
     private fun logTableMissingOnce(table: String) {
         android.util.Log.e(
@@ -178,6 +184,68 @@ class SupabaseUserRepository @Inject constructor(
         }
     }
 
+    override fun observeContactIds(ownerId: String): Flow<Set<String>> = flow {
+        if (!SupabaseSchemaGuard.isTableAvailable(contactsTable)) {
+            emit(emptySet())
+            return@flow
+        }
+
+        while (coroutineContext.isActive) {
+            try {
+                val rows = supabase.postgrest[contactsTable].select {
+                    filter { eq("owner_id", ownerId) }
+                }.decodeList<ContactRow>()
+                emit(rows.map { it.contactUserId }.toSet())
+            } catch (e: Exception) {
+                android.util.Log.e("SupabaseUserRepository", "Error observing contacts", e)
+                if (SupabaseSchemaGuard.markMissingTableIfNeeded(contactsTable, e)) {
+                    logTableMissingOnce(contactsTable)
+                }
+                emit(emptySet())
+            }
+
+            delay(CONTACTS_REFRESH_INTERVAL_MS)
+        }
+    }
+
+    override suspend fun addContact(ownerId: String, contactUserId: String) {
+        if (ownerId.isBlank() || contactUserId.isBlank() || ownerId == contactUserId) return
+        if (!SupabaseSchemaGuard.isTableAvailable(contactsTable)) return
+
+        try {
+            supabase.postgrest[contactsTable].upsert(
+                mapOf(
+                    "owner_id" to ownerId,
+                    "contact_user_id" to contactUserId
+                )
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseUserRepository", "Error adding contact", e)
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(contactsTable, e)) {
+                logTableMissingOnce(contactsTable)
+            }
+        }
+    }
+
+    override suspend fun removeContact(ownerId: String, contactUserId: String) {
+        if (ownerId.isBlank() || contactUserId.isBlank()) return
+        if (!SupabaseSchemaGuard.isTableAvailable(contactsTable)) return
+
+        try {
+            supabase.postgrest[contactsTable].delete {
+                filter {
+                    eq("owner_id", ownerId)
+                    eq("contact_user_id", contactUserId)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SupabaseUserRepository", "Error removing contact", e)
+            if (SupabaseSchemaGuard.markMissingTableIfNeeded(contactsTable, e)) {
+                logTableMissingOnce(contactsTable)
+            }
+        }
+    }
+
     override suspend fun updateStatus(userId: String, status: UserStatus) {
         if (!SupabaseSchemaGuard.isTableAvailable(usersTable)) {
             return
@@ -198,5 +266,15 @@ class SupabaseUserRepository @Inject constructor(
                  logTableMissingOnce(usersTable)
              }
         }
+    }
+
+    @Serializable
+    private data class ContactRow(
+        @SerialName("owner_id") val ownerId: String,
+        @SerialName("contact_user_id") val contactUserId: String
+    )
+
+    companion object {
+        private const val CONTACTS_REFRESH_INTERVAL_MS = 2_000L
     }
 }

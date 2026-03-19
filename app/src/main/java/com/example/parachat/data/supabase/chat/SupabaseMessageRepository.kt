@@ -135,38 +135,45 @@ class SupabaseMessageRepository @Inject constructor(
         }
     }
 
-    override fun observePinnedMessage(currentUserId: String, chatId: String, isGroup: Boolean): Flow<Message?> = flow {
+    override fun observePinnedMessage(currentUserId: String, chatId: String, isGroup: Boolean): Flow<Message?> = channelFlow {
         if (!SupabaseSchemaGuard.isTableAvailable(conversationsTable) || !SupabaseSchemaGuard.isTableAvailable(messagesTable)) {
-            emit(null)
-            return@flow
+            send(null)
+            return@channelFlow
         }
 
-        try {
-            val rowId = conversationRowId(currentUserId, chatId, isGroup)
-            val conversation = supabase.postgrest[conversationsTable].select {
-                filter { eq("id", rowId) }
-            }.decodeSingleOrNull<Conversation>()
+        launch {
+            while (isActive) {
+                try {
+                    val rowId = conversationRowId(currentUserId, chatId, isGroup)
+                    val conversation = supabase.postgrest[conversationsTable].select {
+                        filter { eq("id", rowId) }
+                    }.decodeSingleOrNull<Conversation>()
 
-            val pinnedId = conversation?.pinnedMessageId
-            if (pinnedId.isNullOrBlank()) {
-                emit(null)
-                return@flow
-            }
+                    val pinnedId = conversation?.pinnedMessageId
+                    if (pinnedId.isNullOrBlank()) {
+                        send(null)
+                    } else {
+                        val pinnedMessage = supabase.postgrest[messagesTable].select {
+                            filter { eq("id", pinnedId) }
+                        }.decodeSingleOrNull<Message>()
+                        send(pinnedMessage)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("SupabaseMessageRepo", "Error observing pinned message", e)
+                    if (SupabaseSchemaGuard.markMissingTableIfNeeded(conversationsTable, e) ||
+                        SupabaseSchemaGuard.markMissingTableIfNeeded(messagesTable, e)
+                    ) {
+                        logTableMissingOnce(conversationsTable)
+                        logTableMissingOnce(messagesTable)
+                    }
+                    send(null)
+                }
 
-            val pinnedMessage = supabase.postgrest[messagesTable].select {
-                filter { eq("id", pinnedId) }
-            }.decodeSingleOrNull<Message>()
-            emit(pinnedMessage)
-        } catch (e: Exception) {
-            android.util.Log.e("SupabaseMessageRepo", "Error observing pinned message", e)
-            if (SupabaseSchemaGuard.markMissingTableIfNeeded(conversationsTable, e) ||
-                SupabaseSchemaGuard.markMissingTableIfNeeded(messagesTable, e)
-            ) {
-                logTableMissingOnce(conversationsTable)
-                logTableMissingOnce(messagesTable)
+                delay(CONVERSATIONS_SYNC_INTERVAL_MS)
             }
-            emit(null)
         }
+
+        awaitClose { }
     }
 
     override suspend fun markConversationAsRead(currentUserId: String, chatId: String, isGroup: Boolean) {
